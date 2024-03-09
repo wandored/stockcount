@@ -1,0 +1,62 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="content-section">
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+        <fieldset id="" class="form-group mb-2">
+            <legend class="border-bottom mb-2">Register New User</legend>
+            <div class="form-group mb-1">
+                {{ form.username.label(class="form=control-label") }}
+
+                {% if form.username.errors %}
+                    {{ form.username(class="form=control form-control-md is-invalid") }}
+                    <div class="invalid-feedback">
+                        {% for error in form.username.errors %}
+                            <span>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ form.username(class="form=control form-control-md") }}
+                {% endif %}
+            </div>
+            <div class="form-group mb-1">
+                {{ form.email.label(class="form=control-label") }}
+                {% if form.email.errors %}
+                    {{ form.email(class="form=control form-control-md is-invalid") }}
+                    <div class="invalid-feedback">
+                        {% for error in form.email.errors %}
+                            <span>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ form.email(class="form=control form-control-md") }}
+                {% endif %}
+            </div>
+        </fieldset>
+        <div class="form-group mb-1">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+</div>
+<div class="content-section">
+  <legend class="border-bottom mb-2">Registered Users</legend>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th scope="col">User Name</th>
+        <th scope="col">Email</th>
+        <th scope="col">Admin</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for user in user_list %}
+          <tr>
+            <td><a href="{{ url_for('users.delete_user', user_id=user.id) }}">{{ user.username }}</a></td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.admin }}</td>
+          </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock content %}
