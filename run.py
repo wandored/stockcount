@@ -1,4 +1,4 @@
-from dailystockcount import create_app
+from stockcount import create_app
 
 app = create_app()
 

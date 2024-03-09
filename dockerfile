@@ -9,7 +9,7 @@ COPY . .
 
 # Install the dependencies
 RUN apt-get -y update
-RUN pip3 install -r ./dailystockcount/requirements.txt
+RUN pip3 install -r ./stockcount/requirements.txt
 
 # Expose the required port
 EXPOSE 5000
