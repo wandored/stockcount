@@ -18,7 +18,7 @@ def register_extensions(app):
 def register_blueprints(app):
     for module_name in ("authentication", "counts", "main"):
         module = import_module("stockcount.{}.routes".format(module_name))
-        app.register_blueprint(module, module_name)
+        app.register_blueprint(module.blueprint)
 
 
 def configure_database(app):

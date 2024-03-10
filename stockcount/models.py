@@ -2,15 +2,14 @@
 from datetime import datetime
 
 from flask import current_app
-from flask_sqlalchemy import SQLAlchemy
+from flask_mailman import EmailMessage, Mail
 from flask_security import (
+    RoleMixin,
     Security,
     SQLAlchemySessionUserDatastore,
-    RoleMixin,
     UserMixin,
 )
-
-from flask_mailman import Mail, EmailMessage
+from flask_sqlalchemy import SQLAlchemy
 
 mail = Mail()
 db = SQLAlchemy()
@@ -145,23 +144,27 @@ class Company(db.Model):
     name = db.Column(db.String)
 
 
-class Items(db.Model):
+class InvItems(db.Model):
+    __tablename__ = "inv_items"
+
     id = db.Column(db.Integer, primary_key=True)
-    itemname = db.Column(db.String(), nullable=False)
+    name = db.Column(db.String(), nullable=False)
     casepack = db.Column(db.Integer)
     count = db.relationship("Invcount", backref="count_id", lazy=True)
     buy = db.relationship("Invcount", backref="buy_id", lazy=True)
     sell = db.relationship("Invcount", backref="sell_id", lazy=True)
 
     def __repr__(self):
-        return f"Items('{self.id}', '{self.itemname}', '{self.casepack}')"
+        return f"Items('{self.id}', '{self.name}', '{self.casepack}')"
 
 
-class Invcount(db.Model):
+class InvCount(db.Model):
+    __tablename__ = "inv_count"
+
     id = db.Column(db.Integer, primary_key=True)
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
-    itemname = db.Column(db.String(), nullable=False)
+    item_name = db.Column(db.String(), nullable=False)
     casecount = db.Column(db.Integer, nullable=False)
     eachcount = db.Column(db.Integer, nullable=False)
     count_total = db.Column(db.Integer, nullable=False)
@@ -171,32 +174,36 @@ class Invcount(db.Model):
     item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Invcount('{self.trans_date}', '{self.count_time}', '{self.itemname}', '{self.casecount}', '{self.eachcount}', '{self.count_total}')"
+        return f"Invcount('{self.trans_date}', '{self.count_time}', '{self.item_name}', '{self.casecount}', '{self.eachcount}', '{self.count_total}')"
 
 
-class Purchases(db.Model):
+class InvPurchases(db.Model):
+    __tablename__ = "inv_purchases"
+
     id = db.Column(db.Integer, primary_key=True)
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
-    itemname = db.Column(db.String(), nullable=False)
+    item_name = db.Column(db.String(), nullable=False)
     casecount = db.Column(db.Integer, nullable=False)
     eachcount = db.Column(db.Integer, nullable=False)
     purchase_total = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Purchases('{self.trans_date}', '{self.itemname}', '{self.count_time}', '{self.casecount}', '{self.purchase_total}')"
+        return f"Purchases('{self.trans_date}', '{self.item_name}', '{self.count_time}', '{self.casecount}', '{self.purchase_total}')"
 
 
-class Sales(db.Model):
+class InvSales(db.Model):
+    __tablename__ = "inv_sales"
+
     id = db.Column(db.Integer, primary_key=True)
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
-    itemname = db.Column(db.String(), nullable=False)
+    item_name = db.Column(db.String(), nullable=False)
     eachcount = db.Column(db.Integer, nullable=False)
     waste = db.Column(db.Integer, nullable=False)
     sales_total = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Sales('{self.trans_date}', '{self.itemname}', '{self.eachcount}', '{self.waste}', '{self.sales_total}')"
+        return f"Sales('{self.trans_date}', '{self.item_name}', '{self.eachcount}', '{self.waste}', '{self.sales_total}')"

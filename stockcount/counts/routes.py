@@ -4,7 +4,7 @@ count/routes.py is flask routes for counts, purchases, sales and items
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from stockcount import db, blueprint
+from stockcount.counts import blueprint
 from stockcount.counts.forms import (
     EnterCountForm,
     EnterPurchasesForm,
@@ -16,8 +16,7 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import Invcount, Items, Purchases, Sales
-
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales
 
 
 @blueprint.route("/count/", methods=["GET", "POST"])
@@ -25,25 +24,25 @@ from stockcount.models import Invcount, Items, Purchases, Sales
 def count():
     """Enter count for an item"""
     page = request.args.get("page", 1, type=int)
-    inv_items = Invcount.query.all()
-    group_items = Invcount.query.group_by(Invcount.trans_date, Invcount.count_time)
+    inv_items = InvCount.query.all()
+    group_items = InvCount.query.group_by(InvCount.trans_date, InvCount.count_time)
     ordered_items = group_items.order_by(
-        Invcount.trans_date.desc(), Invcount.count_time.desc()
+        InvCount.trans_date.desc(), InvCount.count_time.desc()
     ).paginate(page=page, per_page=10)
     form = EnterCountForm()
     if form.validate_on_submit():
-        items_object = Items.query.filter_by(id=form.itemname.data.id).first()
+        items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
         # Calculate the previous count
-        filter_item = Invcount.query.filter(Invcount.item_id == form.itemname.data.id)
-        previous_count = filter_item.order_by(Invcount.trans_date.desc()).first()
+        filter_item = InvCount.query.filter(InvCount.item_id == form.itemname.data.id)
+        previous_count = filter_item.order_by(InvCount.trans_date.desc()).first()
         if previous_count is None:
             total_previous = 0
         else:
             total_previous = previous_count.count_total
 
         # Check if count exists for same day and time
-        double_count = Invcount.query.filter_by(
+        double_count = InvCount.query.filter_by(
             item_id=form.itemname.data.id,
             trans_date=form.transdate.data,
             count_time=form.am_pm.data,
@@ -56,7 +55,7 @@ def count():
             return redirect(url_for("counts_blueprint.count"))
 
         # Calculate total purchases
-        purchase_item = Purchases.query.filter_by(
+        purchase_item = InvPurchases.query.filter_by(
             item_id=form.itemname.data.id, trans_date=form.transdate.data
         ).first()
         if purchase_item is None:
@@ -65,7 +64,7 @@ def count():
             total_purchase = purchase_item.purchase_total
 
         # Calculate total sales
-        sales_item = Sales.query.filter_by(
+        sales_item = InvSales.query.filter_by(
             item_id=form.itemname.data.id, trans_date=form.transdate.data
         ).first()
         if sales_item is None:
@@ -73,7 +72,7 @@ def count():
         else:
             total_sales = sales_item.sales_total
 
-        inventory = Invcount(
+        inventory = InvCount(
             trans_date=form.transdate.data,
             count_time=form.am_pm.data,
             itemname=form.itemname.data.itemname,
@@ -111,20 +110,20 @@ def count():
 @login_required
 def update_count(count_id):
     """route for count/id/update"""
-    item = Invcount.query.get_or_404(count_id)
+    item = InvCount.query.get_or_404(count_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
         return redirect(url_for("counts_blueprint.count"))
-    inv_items = Invcount.query.all()
+    inv_items = InvCount.query.all()
     form = UpdateCountForm()
     if form.validate_on_submit():
-        items_object = Items.query.filter_by(id=form.item_id.data).first()
-        filter_item = Invcount.query.filter(
-            Invcount.item_id == form.item_id.data,
-            Invcount.trans_date <= form.transdate.data,
+        items_object = InvItems.query.filter_by(id=form.item_id.data).first()
+        filter_item = InvCount.query.filter(
+            InvCount.item_id == form.item_id.data,
+            InvCount.trans_date <= form.transdate.data,
         )
         ordered_count = (
-            filter_item.order_by(Invcount.trans_date.desc(), Invcount.count_time.desc())
+            filter_item.order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
             .offset(1)
             .first()
         )
@@ -133,7 +132,7 @@ def update_count(count_id):
         else:
             total_previous = ordered_count.count_total
 
-        purchase_item = Purchases.query.filter_by(
+        purchase_item = InvPurchases.query.filter_by(
             item_id=form.item_id.data, trans_date=form.transdate.data
         ).first()
         if purchase_item is None:
@@ -141,7 +140,7 @@ def update_count(count_id):
         else:
             total_purchase = purchase_item.purchase_total
 
-        sales_item = Sales.query.filter_by(
+        sales_item = InvSales.query.filter_by(
             item_id=form.item_id.data, trans_date=form.transdate.data
         ).first()
         if sales_item is None:
@@ -186,7 +185,7 @@ def update_count(count_id):
 @login_required
 def delete_count(count_id):
     """Delete an item count"""
-    item = Invcount.query.get_or_404(count_id)
+    item = InvCount.query.get_or_404(count_id)
     db.session.delete(item)
     db.session.commit()
     flash("Item counts have been deleted!", "success")
@@ -197,22 +196,22 @@ def delete_count(count_id):
 @login_required
 def purchases():
     """Enter new purchases"""
-    purchase_items = Purchases.query.all()
-    inv_items = Items.query.all()
+    purchase_items = InvPurchases.query.all()
+    inv_items = InvItems.query.all()
 
     # Pagination
     page = request.args.get("page", 1, type=int)
-    group_purchases = Purchases.query.group_by(Purchases.trans_date)
-    ordered_purchases = group_purchases.order_by(Purchases.trans_date.desc()).paginate(
-        page=page, per_page=10
-    )
+    group_purchases = InvPurchases.query.group_by(InvPurchases.trans_date)
+    ordered_purchases = group_purchases.order_by(
+        InvPurchases.trans_date.desc()
+    ).paginate(page=page, per_page=10)
 
     form = EnterPurchasesForm()
     if form.validate_on_submit():
-        items_object = Items.query.filter_by(id=form.itemname.data.id).first()
+        items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
         # Check if purchase exists for same day and time
-        double_purchase = Purchases.query.filter_by(
+        double_purchase = InvPurchases.query.filter_by(
             item_id=form.itemname.data.id, trans_date=form.transdate.data
         ).first()
         if double_purchase is not None:
@@ -222,7 +221,7 @@ def purchases():
             )
             return redirect(url_for("counts_blueprint.purchases"))
 
-        purchase = Purchases(
+        purchase = InvPurchases(
             trans_date=form.transdate.data,
             count_time="PM",
             itemname=form.itemname.data.itemname,
@@ -254,14 +253,14 @@ def purchases():
 @blueprint.route("/purchases/<int:purchase_id>/update", methods=["GET", "POST"])
 @login_required
 def update_purchases(purchase_id):
-    item = Purchases.query.get_or_404(purchase_id)
+    item = InvPurchases.query.get_or_404(purchase_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
         return redirect(url_for("counts_blueprint.purchases"))
-    inv_items = Purchases.query.all()
+    inv_items = InvPurchases.query.all()
     form = UpdatePurchasesForm()
     if form.validate_on_submit():
-        items_object = Items.query.filter_by(id=form.item_id.data).first()
+        items_object = InvItems.query.filter_by(id=form.item_id.data).first()
         item.trans_date = form.transdate.data
         item.itemname = form.itemname.data
         item.casecount = form.casecount.data
@@ -292,8 +291,8 @@ def update_purchases(purchase_id):
 @blueprint.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @login_required
 def delete_purchases(purchase_id):
-    item = Purchases.query.get_or_404(purchase_id)
-    unit = Items.query.filter_by(id=item.item_id).first()
+    item = InvPurchases.query.get_or_404(purchase_id)
+    unit = InvItems.query.filter_by(id=item.item_id).first()
     db.session.delete(item)
     db.session.commit()
     flash("Item purchases have been deleted!", "success")
@@ -306,17 +305,17 @@ def delete_purchases(purchase_id):
 def sales():
     """Enter new sales for item"""
     page = request.args.get("page", 1, type=int)
-    sales_items = Sales.query.all()
-    group_sales = Sales.query.group_by(Sales.trans_date)
-    ordered_sales = group_sales.order_by(Sales.trans_date.desc()).paginate(
+    sales_items = InvSales.query.all()
+    group_sales = InvSales.query.group_by(InvSales.trans_date)
+    ordered_sales = group_sales.order_by(InvSales.trans_date.desc()).paginate(
         page=page, per_page=10
     )
     form = EnterSalesForm()
     if form.validate_on_submit():
-        unit = Items.query.filter_by(id=form.itemname.data.id).first()
+        unit = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
         # Check if sales exists for same day and time
-        double_sales = Sales.query.filter_by(
+        double_sales = InvSales.query.filter_by(
             item_id=form.itemname.data.id, trans_date=form.transdate.data
         ).first()
         if double_sales is not None:
@@ -326,7 +325,7 @@ def sales():
             )
             return redirect(url_for("counts_blueprint.sales"))
 
-        sale = Sales(
+        sale = InvSales(
             trans_date=form.transdate.data,
             count_time="PM",
             itemname=form.itemname.data.itemname,
@@ -356,14 +355,14 @@ def sales():
 @login_required
 def update_sales(sales_id):
     """Update sales items"""
-    item = Sales.query.get_or_404(sales_id)
+    item = InvSales.query.get_or_404(sales_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
         return redirect(url_for("counts_blueprint.sales"))
-    inv_items = Sales.query.all()
+    inv_items = InvSales.query.all()
     form = UpdateSalesForm()
     if form.validate_on_submit():
-        unit = Items.query.filter_by(id=form.item_id.data).first()
+        unit = InvItems.query.filter_by(id=form.item_id.data).first()
         item.trans_date = form.transdate.data
         item.itemname = form.itemname.data
         item.eachcount = form.eachcount.data
@@ -393,8 +392,8 @@ def update_sales(sales_id):
 @login_required
 def delete_sales(sales_id):
     """Delete sales items"""
-    item = Sales.query.get_or_404(sales_id)
-    unit = Items.query.filter_by(id=item.item_id).first()
+    item = InvSales.query.get_or_404(sales_id)
+    unit = InvItems.query.filter_by(id=item.item_id).first()
     db.session.delete(item)
     db.session.commit()
     flash("Item Sales have been deleted!", "success")
@@ -406,10 +405,10 @@ def delete_sales(sales_id):
 @login_required
 def new_item():
     """Create new inventory items"""
-    inv_items = Items.query.all()
+    inv_items = InvItems.query.all()
     form = NewItemForm()
     if form.validate_on_submit():
-        item = Items(itemname=form.itemname.data, casepack=form.casepack.data)
+        item = InvItems(itemname=form.itemname.data, casepack=form.casepack.data)
         db.session.add(item)
         db.session.commit()
         flash(f"New item created for {form.itemname.data}!", "success")
@@ -427,8 +426,8 @@ def new_item():
 @login_required
 def update_item(item_id):
     """Update current inventory items"""
-    item = Items.query.get_or_404(item_id)
-    inv_items = Items.query.all()
+    item = InvItems.query.get_or_404(item_id)
+    inv_items = InvItems.query.all()
     form = UpdateItemForm()
     if form.validate_on_submit():
         item.itemname = form.itemname.data
@@ -453,7 +452,7 @@ def update_item(item_id):
 @login_required
 def delete_item(item_id):
     """Delete current items"""
-    item = Items.query.get_or_404(item_id)
+    item = InvItems.query.get_or_404(item_id)
     db.session.delete(item)
     db.session.commit()
     flash("Product has been 86'd!", "success")

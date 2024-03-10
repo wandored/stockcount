@@ -10,19 +10,19 @@ from wtforms import (
     StringField,
     SubmitField,
 )
-from wtforms.fields.html5 import DateField
+from wtforms.fields import DateField
 from wtforms.validators import DataRequired
 from wtforms_sqlalchemy.fields import QuerySelectField
 
-from stockcount.models import Items
+from stockcount.models import InvItems
 
 
 def item_query():
-    return Items.query
+    return InvItems.query
 
 
 def item_number():
-    return Items.query.count()
+    return InvItems.query.count()
 
 
 class NewItemForm(FlaskForm):

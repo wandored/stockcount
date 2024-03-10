@@ -2,19 +2,19 @@
 from flask import flash
 
 from stockcount import db
-from stockcount.models import Invcount, Items, Purchases, Sales
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales
 
 
 def calculate_totals(item_id):
     """Run the variance calculations for each item"""
-    unit = Items.query.get_or_404(item_id)
-    filter_item = Invcount.query.filter(Invcount.item_id == unit.id)
+    unit = InvItems.query.get_or_404(item_id)
+    filter_item = InvCount.query.filter(InvCount.item_id == unit.id)
     ordered_count = filter_item.order_by(
-        Invcount.trans_date.desc(), Invcount.count_time.desc()
+        InvCount.trans_date.desc(), InvCount.count_time.desc()
     ).first()
 
     if ordered_count is not None:
-        purchase_item = Purchases.query.filter_by(
+        purchase_item = InvPurchases.query.filter_by(
             item_id=unit.id, trans_date=ordered_count.trans_date
         ).first()
         if purchase_item is None:
@@ -22,7 +22,7 @@ def calculate_totals(item_id):
         else:
             total_purchase = purchase_item.purchase_total
 
-        sales_item = Sales.query.filter_by(
+        sales_item = InvSales.query.filter_by(
             item_id=unit.id, trans_date=ordered_count.trans_date
         ).first()
         if sales_item is None:
