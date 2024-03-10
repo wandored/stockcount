@@ -1,30 +1,29 @@
 """ main/routes.py is the main flask routes page """
 from datetime import timedelta
 
-from flask import Blueprint, flash, redirect, render_template, url_for
+from flask import flash, redirect, render_template, url_for
 from flask_login import login_required
 from sqlalchemy import and_, func
 
-from stockcount import db
+from stockcount import db, blueprint
 from stockcount.models import Invcount, Items, Purchases, Sales
 
-main = Blueprint("main", __name__)
 
 
-@main.route("/home/")
+@blueprint.route("/home/")
 def home():
-    return render_template("main/home.html", title="Home")
+    return render_template("main_blueprint/home.html", title="Home")
 
 
-@main.route("/")
-@main.route("/report/", methods=["GET", "POST"])
+@blueprint.route("/")
+@blueprint.route("/report/", methods=["GET", "POST"])
 @login_required
 def report():
     """route for reports.html"""
     is_items = Items.query.first()
     if not is_items:
         flash("The first step is to add the items you want to count!", "warning")
-        return redirect(url_for("counts.new_item"))
+        return redirect(url_for("counts_blueprint.new_item"))
     ordered_counts = Invcount.query.order_by(
         Invcount.trans_date.desc(), Invcount.count_time.desc(), Invcount.daily_variance
     ).all()
@@ -34,7 +33,7 @@ def report():
 
     if not ordered_counts:
         flash("You must first enter Counts to see Reports!", "warning")
-        return redirect(url_for("counts.count"))
+        return redirect(url_for("counts_blueprint.count"))
 
     return render_template(
         "main/report.html",
@@ -44,7 +43,7 @@ def report():
     )
 
 
-@main.route("/report/<product>/details", methods=["GET", "POST"])
+@blueprint.route("/report/<product>/details", methods=["GET", "POST"])
 @login_required
 def report_details(product):
     """display item details"""

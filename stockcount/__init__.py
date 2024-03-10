@@ -3,32 +3,22 @@ stockcount app initialization
 """
 
 from flask import Flask
-from flask_bcrypt import Bcrypt
-from flask_login import LoginManager
-from flask_mailman import Mail
-from flask_sqlalchemy import SQLAlchemy
+from importlib import import_module
 
 from stockcount.config import Config
-
-mail = Mail()
-db = SQLAlchemy()
-bcrypt = Bcrypt()
-login_manager = LoginManager()
-login_manager.login_view = "main.home"
-login_manager.login_message_category = "info"
+from stockcount.models import db, mail, security, user_datastore
 
 
 def register_extensions(app):
     db.init_app(app)
-    bcrypt.init_app(app)
-    login_manager.init_app(app)
     mail.init_app(app)
+    security.init_app(app, user_datastore)
 
 
 def register_blueprints(app):
-    for module_name in ("users", "counts", "main", "errors"):
-        module = __import__(f"stockcount.{module_name}.routes", fromlist=[module_name])
-        app.register_blueprint(getattr(module, module_name))
+    for module_name in ("authentication", "counts", "main"):
+        module = import_module("stockcount.{}.routes".format(module_name))
+        app.register_blueprint(module, module_name)
 
 
 def configure_database(app):
@@ -43,7 +33,6 @@ def configure_database(app):
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(Config)
-
     register_extensions(app)
     register_blueprints(app)
     configure_database(app)

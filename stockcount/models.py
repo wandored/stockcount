@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from flask import current_app
+from flask_sqlalchemy import SQLAlchemy
 from flask_security import (
     Security,
     SQLAlchemySessionUserDatastore,
@@ -9,7 +10,11 @@ from flask_security import (
     UserMixin,
 )
 
-from stockcount import db, login_manager
+from flask_mailman import Mail, EmailMessage
+
+mail = Mail()
+db = SQLAlchemy()
+security = Security()
 
 
 # Create a table to support a many-to-many relationship between Users and Roles
@@ -88,7 +93,6 @@ class Users(db.Model, UserMixin):
 
 
 user_datastore = SQLAlchemySessionUserDatastore(db.session, Users, Roles)
-security = Security()
 
 
 class UnitsOfMeasure(db.Model):

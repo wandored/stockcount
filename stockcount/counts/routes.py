@@ -1,10 +1,10 @@
 """
 count/routes.py is flask routes for counts, purchases, sales and items
 """
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from stockcount import db
+from stockcount import db, blueprint
 from stockcount.counts.forms import (
     EnterCountForm,
     EnterPurchasesForm,
@@ -18,10 +18,9 @@ from stockcount.counts.forms import (
 from stockcount.counts.utils import calculate_totals
 from stockcount.models import Invcount, Items, Purchases, Sales
 
-counts = Blueprint("counts", __name__)
 
 
-@counts.route("/count/", methods=["GET", "POST"])
+@blueprint.route("/count/", methods=["GET", "POST"])
 @login_required
 def count():
     """Enter count for an item"""
@@ -54,7 +53,7 @@ def count():
                 f"{form.itemname.data.itemname} already has a {form.am_pm.data} count on {form.transdate.data}, please enter a different date or time",
                 "warning",
             )
-            return redirect(url_for("counts.count"))
+            return redirect(url_for("counts_blueprint.count"))
 
         # Calculate total purchases
         purchase_item = Purchases.query.filter_by(
@@ -97,7 +96,7 @@ def count():
             f"Count submitted for {form.itemname.data.itemname} on {form.transdate.data}!",
             "success",
         )
-        return redirect(url_for("counts.count"))
+        return redirect(url_for("counts_blueprint.count"))
 
     return render_template(
         "counts/count.html",
@@ -108,14 +107,14 @@ def count():
     )
 
 
-@counts.route("/count/<int:count_id>/update", methods=["GET", "POST"])
+@blueprint.route("/count/<int:count_id>/update", methods=["GET", "POST"])
 @login_required
 def update_count(count_id):
     """route for count/id/update"""
     item = Invcount.query.get_or_404(count_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
-        return redirect(url_for("counts.count"))
+        return redirect(url_for("counts_blueprint.count"))
     inv_items = Invcount.query.all()
     form = UpdateCountForm()
     if form.validate_on_submit():
@@ -165,7 +164,7 @@ def update_count(count_id):
         ) - (total_previous + total_purchase - total_sales)
         db.session.commit()
         flash("Item counts have been updated!", "success")
-        return redirect(url_for("counts.count"))
+        return redirect(url_for("counts_blueprint.count"))
     if request.method == "GET":
         form.item_id.data = item.item_id
         form.transdate.data = item.trans_date
@@ -183,7 +182,7 @@ def update_count(count_id):
     )
 
 
-@counts.route("/count/<int:count_id>/delete", methods=["POST"])
+@blueprint.route("/count/<int:count_id>/delete", methods=["POST"])
 @login_required
 def delete_count(count_id):
     """Delete an item count"""
@@ -191,10 +190,10 @@ def delete_count(count_id):
     db.session.delete(item)
     db.session.commit()
     flash("Item counts have been deleted!", "success")
-    return redirect(url_for("counts.count"))
+    return redirect(url_for("counts_blueprint.count"))
 
 
-@counts.route("/purchases/", methods=["GET", "POST"])
+@blueprint.route("/purchases/", methods=["GET", "POST"])
 @login_required
 def purchases():
     """Enter new purchases"""
@@ -221,7 +220,7 @@ def purchases():
                 f"{form.itemname.data.itemname} already has a purchase on {form.transdate.data}, please enter a different date or edit the existing purchase!",
                 "warning",
             )
-            return redirect(url_for("counts.purchases"))
+            return redirect(url_for("counts_blueprint.purchases"))
 
         purchase = Purchases(
             trans_date=form.transdate.data,
@@ -241,7 +240,7 @@ def purchases():
             "success",
         )
         calculate_totals(items_object.id)
-        return redirect(url_for("counts.purchases"))
+        return redirect(url_for("counts_blueprint.purchases"))
     return render_template(
         "counts/purchases.html",
         title="Purchases",
@@ -252,13 +251,13 @@ def purchases():
     )
 
 
-@counts.route("/purchases/<int:purchase_id>/update", methods=["GET", "POST"])
+@blueprint.route("/purchases/<int:purchase_id>/update", methods=["GET", "POST"])
 @login_required
 def update_purchases(purchase_id):
     item = Purchases.query.get_or_404(purchase_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
-        return redirect(url_for("counts.purchases"))
+        return redirect(url_for("counts_blueprint.purchases"))
     inv_items = Purchases.query.all()
     form = UpdatePurchasesForm()
     if form.validate_on_submit():
@@ -273,7 +272,7 @@ def update_purchases(purchase_id):
         db.session.commit()
         flash("Item purchases have been updated!", "success")
         calculate_totals(items_object.id)
-        return redirect(url_for("counts.purchases"))
+        return redirect(url_for("counts_blueprint.purchases"))
     elif request.method == "GET":
         form.transdate.data = item.trans_date
         form.itemname.data = item.itemname
@@ -290,7 +289,7 @@ def update_purchases(purchase_id):
     )
 
 
-@counts.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
+@blueprint.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @login_required
 def delete_purchases(purchase_id):
     item = Purchases.query.get_or_404(purchase_id)
@@ -299,10 +298,10 @@ def delete_purchases(purchase_id):
     db.session.commit()
     flash("Item purchases have been deleted!", "success")
     calculate_totals(unit.id)
-    return redirect(url_for("counts.purchases"))
+    return redirect(url_for("counts_blueprint.purchases"))
 
 
-@counts.route("/sales/", methods=["GET", "POST"])
+@blueprint.route("/sales/", methods=["GET", "POST"])
 @login_required
 def sales():
     """Enter new sales for item"""
@@ -325,7 +324,7 @@ def sales():
                 f"{form.itemname.data.itemname} already has Sales on {form.transdate.data}, please enter a different date or edit the existing sale!",
                 "warning",
             )
-            return redirect(url_for("counts.sales"))
+            return redirect(url_for("counts_blueprint.sales"))
 
         sale = Sales(
             trans_date=form.transdate.data,
@@ -343,7 +342,7 @@ def sales():
             "success",
         )
         calculate_totals(unit.id)
-        return redirect(url_for("counts.sales"))
+        return redirect(url_for("counts_blueprint.sales"))
     return render_template(
         "counts/sales.html",
         title="Sales",
@@ -353,14 +352,14 @@ def sales():
     )
 
 
-@counts.route("/sales/<int:sales_id>/update", methods=["GET", "POST"])
+@blueprint.route("/sales/<int:sales_id>/update", methods=["GET", "POST"])
 @login_required
 def update_sales(sales_id):
     """Update sales items"""
     item = Sales.query.get_or_404(sales_id)
     if not item.item_id:
         flash(f"{item.itemname} is not an active product!", "warning")
-        return redirect(url_for("counts.sales"))
+        return redirect(url_for("counts_blueprint.sales"))
     inv_items = Sales.query.all()
     form = UpdateSalesForm()
     if form.validate_on_submit():
@@ -373,7 +372,7 @@ def update_sales(sales_id):
         db.session.commit()
         flash("Item Sales have been updated!", "success")
         calculate_totals(unit.id)
-        return redirect(url_for("counts.sales"))
+        return redirect(url_for("counts_blueprint.sales"))
     elif request.method == "GET":
         form.transdate.data = item.trans_date
         form.itemname.data = item.itemname
@@ -390,7 +389,7 @@ def update_sales(sales_id):
     )
 
 
-@counts.route("/sales/<int:sales_id>/delete", methods=["POST"])
+@blueprint.route("/sales/<int:sales_id>/delete", methods=["POST"])
 @login_required
 def delete_sales(sales_id):
     """Delete sales items"""
@@ -400,10 +399,10 @@ def delete_sales(sales_id):
     db.session.commit()
     flash("Item Sales have been deleted!", "success")
     calculate_totals(unit.id)
-    return redirect(url_for("counts.sales"))
+    return redirect(url_for("counts_blueprint.sales"))
 
 
-@counts.route("/item/new", methods=["GET", "POST"])
+@blueprint.route("/item/new", methods=["GET", "POST"])
 @login_required
 def new_item():
     """Create new inventory items"""
@@ -414,7 +413,7 @@ def new_item():
         db.session.add(item)
         db.session.commit()
         flash(f"New item created for {form.itemname.data}!", "success")
-        return redirect(url_for("counts.new_item"))
+        return redirect(url_for("counts_blueprint.new_item"))
     return render_template(
         "counts/new_item.html",
         title="New Inventory Item",
@@ -424,7 +423,7 @@ def new_item():
     )
 
 
-@counts.route("/item/<int:item_id>/update", methods=["GET", "POST"])
+@blueprint.route("/item/<int:item_id>/update", methods=["GET", "POST"])
 @login_required
 def update_item(item_id):
     """Update current inventory items"""
@@ -436,7 +435,7 @@ def update_item(item_id):
         item.casepack = form.casepack.data
         db.session.commit()
         flash(f"{item.itemname} has been updated!", "success")
-        return redirect(url_for("counts.new_item"))
+        return redirect(url_for("counts_blueprint.new_item"))
     elif request.method == "GET":
         form.itemname.data = item.itemname
         form.casepack.data = item.casepack
@@ -450,7 +449,7 @@ def update_item(item_id):
     )
 
 
-@counts.route("/item/<int:item_id>/delete", methods=["POST"])
+@blueprint.route("/item/<int:item_id>/delete", methods=["POST"])
 @login_required
 def delete_item(item_id):
     """Delete current items"""
@@ -458,4 +457,4 @@ def delete_item(item_id):
     db.session.delete(item)
     db.session.commit()
     flash("Product has been 86'd!", "success")
-    return redirect(url_for("counts.new_item"))
+    return redirect(url_for("counts_blueprint.new_item"))

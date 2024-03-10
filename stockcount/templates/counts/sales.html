@@ -70,7 +70,7 @@
           {% for item in sales_items%}
             {% if item.trans_date == group.trans_date  %}
               <div class="media-body">
-                <a class="me-2" href="{{ url_for('counts.update_sales', sales_id=item.id) }}">{{ item.itemname }}</a>
+                <a class="me-2" href="{{ url_for('counts_blueprint.update_sales', sales_id=item.id) }}">{{ item.itemname }}</a>
                 <small class="text-muted"> Total Sales  -  {{ item.eachcount }} / Waste  -  {{ item.waste }}</small>
               </div>
             {% endif %}
@@ -81,9 +81,9 @@
 {% for page_num in ordered_sales.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
   {% if page_num %}
     {%if ordered_sales.page == page_num %}
-      <a class="btn btn-info mb-4" href="{{ url_for('counts.sales', page=page_num) }}">{{ page_num }}</a>
+      <a class="btn btn-info mb-4" href="{{ url_for('counts_blueprint.sales', page=page_num) }}">{{ page_num }}</a>
     {% else %}
-      <a class="btn btn-outline-info mb-4" href="{{ url_for('counts.sales', page=page_num) }}">{{ page_num }}</a>
+      <a class="btn btn-outline-info mb-4" href="{{ url_for('counts_blueprint.sales', page=page_num) }}">{{ page_num }}</a>
     {% endif %}
   {% else %}
     ...
