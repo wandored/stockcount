@@ -3,12 +3,12 @@ from datetime import datetime
 
 from flask import current_app
 from flask_mailman import EmailMessage, Mail
-from flask_security import (
+from flask_security.core import (
     RoleMixin,
     Security,
-    SQLAlchemySessionUserDatastore,
     UserMixin,
 )
+from flask_security.datastore import SQLAlchemySessionUserDatastore
 from flask_sqlalchemy import SQLAlchemy
 
 mail = Mail()

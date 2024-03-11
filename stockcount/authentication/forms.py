@@ -18,7 +18,7 @@ from wtforms import widgets, SubmitField, StringField, PasswordField
 from wtforms.fields import DateField
 from wtforms_sqlalchemy.fields import QuerySelectMultipleField, QuerySelectField
 from wtforms.validators import Email, DataRequired
-from dashapp.authentication.models import Restaurants
+from stockcount.models import Restaurants
 
 # login and registration
 

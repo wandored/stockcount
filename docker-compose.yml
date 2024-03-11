@@ -8,18 +8,3 @@ services:
       - 5000:80
     volumes:
       - .:/stockcount
-
-  pgadmin:
-    container_name: pgadmin4
-    image: dpage/pgadmin4
-    restart: always
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=chefk67@gmail.com
-      - PGADMIN_DEFAULT_PASSWORD=midnight67
-    ports:
-      - 8080:80
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
-
-volumes:
-  pgadmin-data:
