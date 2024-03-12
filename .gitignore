@@ -1,10 +1,5 @@
-*.db
-*.sql
-etc/
-output/
 __pycache__/
 stockcount/site.*
-homepage/
 stockcount/__pycache__/
 stockcount/main/__pycache__/
 stockcount/users/__pycache__/
@@ -12,4 +7,4 @@ stockcount/counts/__pycache__/
 .venv/
 downloads/
 stockcount/static/img/QRCode.svg
-dbfiles/
+etc/
