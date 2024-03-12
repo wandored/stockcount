@@ -42,9 +42,9 @@
             <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.sales') }}">Sales</a>
             <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.new_item') }}">Items</a>
             <a class="nav-item nav-link" href="{{ url_for('main_blueprint.report') }}">Reports</a>
-            <a class="nav-item nav-link" href="{{ url_for('authentication_blueprint.logout') }}">Logout</a>
+            <a class="nav-item nav-link" href="/logout">Logout</a>
             {% else %}
-            <a class="nav-item nav-link" href="{{ url_for('authentication_blueprint.login') }}">Login</a>
+            <a class="nav-item nav-link" href="{{ url_for('authentication_blueprint.login_user') }}">Login</a>
             <a class="nav-item nav-link" href="{{ url_for('main_blueprint.home') }}">Info</a>
             {% endif %}
           </div>
@@ -79,22 +79,6 @@
                 <i class="bi bi-table"></i>
               </div>
               <a class="btn btn-warning" href="{{ url_for('main_blueprint.report') }}">Reports</a>
-            </div>
-          </div>
-          <div class="card bg-steel text-light">
-            <div class="card-body text-center">
-              <div class="h1 mb-1">
-                <i class="bi bi-person-square"></i>
-              </div>
-              <a class="btn btn-warning" href="{{ url_for('authentication_blueprint.account') }}">My Account</a>
-            </div>
-          </div>
-          <div class="card bg-steel text-light">
-            <div class="card-body text-center">
-              <div class="h1 mb-1">
-                <i class="bi bi-people-fill"></i>
-              </div>
-              <a class="btn btn-warning" href="{{ url_for('authentication_blueprint.register') }}">Manage Users</a>
             </div>
           </div>
           <div class="card bg-steel text-light">

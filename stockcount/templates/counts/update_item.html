@@ -4,7 +4,7 @@
     <form method="POST" action="">
         {{ form.hidden_tag() }}
         <fieldset id="" class="form-group">
-          <legend class="border-bottom mb-4">{{ legend }}{{ item.itemname }}</legend>
+          <legend class="border-bottom mb-4">{{ legend }}{{ item.item_name }}</legend>
             <div class="form-group">
                 {{ form.itemname.label(class="form=control-label") }}
                 {% if form.itemname.errors %}
@@ -49,7 +49,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
-        <form action="{{ url_for('counts.delete_item', item_id=item.id) }}" method="POST">
+        <form action="{{ url_for('counts_blueprint.delete_item', item_id=item.id) }}" method="POST">
             <input class="btn btn-danger" type="submit" value="Delete">
         </form>
       </div>

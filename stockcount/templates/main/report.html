@@ -9,7 +9,7 @@
         <div class="col-md-3 p-1">
           {% if count.daily_variance < 0 %}
             <div class="content-section bg-danger">
-              <legend class="text-white mb-1">{{ count.itemname }}</legend>
+              <legend class="text-white mb-1">{{ count.item_name }}</legend>
               <div class="card text-center text-dark bg-light">
                 <div class="card-body">
                   <h5 class="card-text">{{ count.daily_variance }}</h5>
@@ -19,7 +19,7 @@
             </div>
           {% elif count.daily_variance > 0 %}
             <div class="content-section bg-warning">
-              <legend class="text-dark mb-1">{{ count.itemname }}</legend>
+              <legend class="text-dark mb-1">{{ count.item_name }}</legend>
               <div class="card text-center text-dark bg-light">
                 <div class="card-body">
                   <h5 class="card-text">{{ count.daily_variance }}</h5>
@@ -29,7 +29,7 @@
             </div>
           {% elif count.daily_variance == 0 %}
             <div class="content-section bg-success">
-              <legend class="text-white mb-1">{{ count.itemname }}</legend>
+              <legend class="text-white mb-1">{{ count.item_name }}</legend>
               <div class="card text-center text-dark bg-light">
                 <div class="card-body">
                   <h5 class="card-text">{{ count.daily_variance }}</h5>

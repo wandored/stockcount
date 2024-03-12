@@ -34,7 +34,7 @@ def calculate_totals(item_id):
             ordered_count.previous_total + total_purchase - total_sales
         )
         ordered_count.daily_variance = (
-            unit.casepack * ordered_count.casecount + ordered_count.eachcount
+            unit.case_pack * ordered_count.case_count + ordered_count.each_count
         ) - (ordered_count.previous_total + total_purchase - total_sales)
         db.session.commit()
         flash("Variances have been recalculated!", "success")

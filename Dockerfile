@@ -5,8 +5,10 @@ FROM ubuntu:22.04
 WORKDIR /stockcount
 
 # Install the dependencies
-RUN apt-get -y update
-RUN pip3 install -r ./stockcount/requirements.txt
+COPY ./requirements.txt /stockcount/requirements.txt
+COPY ./etc/config.json /etc/config.json
+RUN apt update && apt install -y python3-pip libpq-dev
+RUN pip3 install --no-cache-dir --upgrade -r requirements.txt
 
 # Copy the app
 COPY . /stockcount

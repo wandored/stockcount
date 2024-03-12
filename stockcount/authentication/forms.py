@@ -12,12 +12,14 @@ Classes:
     - StoreForm: Form for selecting stores.
 """
 
-from flask_wtf import FlaskForm
 from datetime import datetime
-from wtforms import widgets, SubmitField, StringField, PasswordField
+
+from flask_wtf import FlaskForm
+from wtforms import PasswordField, StringField, SubmitField, widgets
 from wtforms.fields import DateField
-from wtforms_sqlalchemy.fields import QuerySelectMultipleField, QuerySelectField
-from wtforms.validators import Email, DataRequired
+from wtforms.validators import DataRequired, Email
+from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
+
 from stockcount.models import Restaurants
 
 # login and registration
@@ -60,4 +62,3 @@ class StoreForm(FlaskForm):
         get_label="name",
     )
     submit3 = SubmitField("Submit")
-

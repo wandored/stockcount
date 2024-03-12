@@ -148,14 +148,14 @@ class InvItems(db.Model):
     __tablename__ = "inv_items"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(), nullable=False)
-    casepack = db.Column(db.Integer)
-    count = db.relationship("Invcount", backref="count_id", lazy=True)
-    buy = db.relationship("Invcount", backref="buy_id", lazy=True)
-    sell = db.relationship("Invcount", backref="sell_id", lazy=True)
+    item_name = db.Column(db.String(), nullable=False)
+    case_pack = db.Column(db.Integer)
+    count = db.relationship("InvCount", backref="item", lazy=True)
+    buy = db.relationship("InvPurchases", backref="item", lazy=True)
+    sell = db.relationship("InvSales", backref="item", lazy=True)
 
     def __repr__(self):
-        return f"Items('{self.id}', '{self.name}', '{self.casepack}')"
+        return f"InvItems('{self.id}', '{self.item_name}', '{self.case_pack}')"
 
 
 class InvCount(db.Model):
@@ -165,16 +165,16 @@ class InvCount(db.Model):
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
     item_name = db.Column(db.String(), nullable=False)
-    casecount = db.Column(db.Integer, nullable=False)
-    eachcount = db.Column(db.Integer, nullable=False)
+    case_count = db.Column(db.Integer, nullable=False)
+    each_count = db.Column(db.Integer, nullable=False)
     count_total = db.Column(db.Integer, nullable=False)
     previous_total = db.Column(db.Integer, nullable=False)
     theory = db.Column(db.Integer, nullable=False)
     daily_variance = db.Column(db.Integer, nullable=False)
-    item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Invcount('{self.trans_date}', '{self.count_time}', '{self.item_name}', '{self.casecount}', '{self.eachcount}', '{self.count_total}')"
+        return f"InvCount('{self.trans_date}', '{self.count_time}', '{self.item_name}', '{self.case_count}', '{self.each_count}', '{self.count_total}, {self.item_id}')"
 
 
 class InvPurchases(db.Model):
@@ -184,13 +184,13 @@ class InvPurchases(db.Model):
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
     item_name = db.Column(db.String(), nullable=False)
-    casecount = db.Column(db.Integer, nullable=False)
-    eachcount = db.Column(db.Integer, nullable=False)
+    case_count = db.Column(db.Integer, nullable=False)
+    each_count = db.Column(db.Integer, nullable=False)
     purchase_total = db.Column(db.Integer, nullable=False)
-    item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Purchases('{self.trans_date}', '{self.item_name}', '{self.count_time}', '{self.casecount}', '{self.purchase_total}')"
+        return f"InvPurchases('{self.trans_date}', '{self.item_name}', '{self.count_time}', '{self.case_count}', '{self.purchase_total}, {self.item_id}')"
 
 
 class InvSales(db.Model):
@@ -200,10 +200,10 @@ class InvSales(db.Model):
     trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     count_time = db.Column(db.String(), nullable=False)
     item_name = db.Column(db.String(), nullable=False)
-    eachcount = db.Column(db.Integer, nullable=False)
+    each_count = db.Column(db.Integer, nullable=False)
     waste = db.Column(db.Integer, nullable=False)
     sales_total = db.Column(db.Integer, nullable=False)
-    item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
 
     def __repr__(self):
-        return f"Sales('{self.trans_date}', '{self.item_name}', '{self.eachcount}', '{self.waste}', '{self.sales_total}')"
+        return f"InvSales('{self.trans_date}', '{self.item_name}', '{self.each_count}', '{self.waste}', '{self.sales_total}', {self.item_id})"

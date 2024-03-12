@@ -41,7 +41,7 @@ class EnterCountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d", default=datetime.today)
     am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
     itemname = QuerySelectField(
-        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="itemname"
+        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="item_name"
     )
     casecount = IntegerField("Case Count: ", default=0)
     eachcount = IntegerField("Each Count: ", default=0)
@@ -52,7 +52,7 @@ class UpdateCountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d")
     am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
     itemname = StringField("Item Name: ", validators=[DataRequired()])
-    item_id = HiddenField(validators=[DataRequired()])
+    itemid = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Case Count: ")
     eachcount = IntegerField("Each Count: ")
     submit = SubmitField("Submit!")
@@ -72,7 +72,7 @@ class EnterPurchasesForm(FlaskForm):
     am_pm = HiddenField("PM")
     #    itemname = FieldList(FormField(PurchaseForm), min_entries=5)
     itemname = QuerySelectField(
-        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="itemname"
+        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="item_name"
     )
     casecount = IntegerField("Cases Purchased: ", default=0)
     eachcount = IntegerField("Each Purchased: ", default=0)
@@ -93,7 +93,7 @@ class EnterSalesForm(FlaskForm):
     transdate = DateField("Sales Date: ", format="%Y-%m-%d", default=datetime.today)
     am_pm = HiddenField("PM")
     itemname = QuerySelectField(
-        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="itemname"
+        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="item_name"
     )
     eachcount = IntegerField("Each Sales: ", default=0)
     waste = IntegerField("Waste", default=0)

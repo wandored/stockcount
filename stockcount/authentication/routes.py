@@ -1,5 +1,6 @@
 """ error handler page """
 from flask import render_template
+
 from stockcount.authentication import blueprint
 
 
