@@ -1,12 +1,14 @@
 """ main/routes.py is the main flask routes page """
 from datetime import timedelta
 
-from flask import flash, redirect, render_template, url_for
-from flask_login import login_required
+from flask import flash, redirect, render_template, session, url_for
+from flask_security import current_user, login_required
 from sqlalchemy import and_, func
 
+from stockcount import db
 from stockcount.main import blueprint
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales
+from stockcount.main.utils import set_user_access
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 
 
 @blueprint.route("/home/")
@@ -19,16 +21,26 @@ def home():
 @login_required
 def report():
     """route for reports.html"""
-    is_items = InvItems.query.first()
-    if not is_items:
-        flash("The first step is to add the items you want to count!", "warning")
-        return redirect(url_for("counts_blueprint.new_item"))
-    ordered_counts = InvCount.query.order_by(
-        InvCount.trans_date.desc(), InvCount.count_time.desc(), InvCount.daily_variance
-    ).all()
-    date_time = InvCount.query.order_by(
-        InvCount.trans_date.desc(), InvCount.count_time.desc()
-    ).first()
+    if session.get("access") is None:
+        session["access"] = set_user_access()
+    if session.get("store") is None:
+        session["store"] = session["access"][0]
+    location = Restaurants.query.filter_by(id=session["store"]).first()
+
+    ordered_counts = (
+        InvCount.query.filter_by(store_id=session["store"])
+        .order_by(
+            InvCount.trans_date.desc(),
+            InvCount.count_time.desc(),
+            InvCount.daily_variance,
+        )
+        .all()
+    )
+    date_time = (
+        InvCount.query.filter_by(store_id=session["store"])
+        .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
+        .first()
+    )
 
     if not ordered_counts:
         flash("You must first enter Counts to see Reports!", "warning")
@@ -37,8 +49,7 @@ def report():
     return render_template(
         "main/report.html",
         title="Variance-Daily",
-        ordered_counts=ordered_counts,
-        date_time=date_time,
+        **locals(),
     )
 
 
@@ -46,8 +57,13 @@ def report():
 @login_required
 def report_details(product):
     """display item details"""
+    location = Restaurants.query.filter_by(id=session["store"]).first()
     # restrict results to the last 7 & 28 days
-    last_count = InvCount.query.order_by(InvCount.trans_date.desc()).first()
+    last_count = (
+        InvCount.query.filter_by(store_id=session["store"])
+        .order_by(InvCount.trans_date.desc())
+        .first()
+    )
     end_date = last_count.trans_date
     weekly = end_date - timedelta(days=6)
     monthly = end_date - timedelta(days=27)
@@ -56,6 +72,7 @@ def report_details(product):
     count_daily = (
         db.session.query(InvCount)
         .filter(
+            InvCount.store_id == session["store"],
             InvCount.item_id == product,
             InvCount.count_time == "PM",
             InvCount.trans_date == end_date,
@@ -65,10 +82,11 @@ def report_details(product):
     sales_weekly = (
         db.session.query(
             InvSales,
-            func.sum(InvSales.eachcount).label("total"),
-            func.avg(InvSales.eachcount).label("sales_avg"),
+            func.sum(InvSales.each_count).label("total"),
+            func.avg(InvSales.each_count).label("sales_avg"),
         )
         .filter(
+            InvSales.store_id == session["store"],
             InvSales.item_id == product,
             InvSales.count_time == "PM",
             InvSales.trans_date >= weekly,
@@ -80,6 +98,7 @@ def report_details(product):
             InvPurchases, func.sum(InvPurchases.purchase_total).label("total")
         )
         .filter(
+            InvPurchases.store_id == session["store"],
             InvPurchases.item_id == product,
             InvPurchases.count_time == "PM",
             InvPurchases.trans_date >= weekly,
@@ -88,7 +107,11 @@ def report_details(product):
     )
     on_hand_weekly = (
         db.session.query(InvCount, func.avg(InvCount.count_total).label("average"))
-        .filter(InvCount.item_id == product, InvCount.trans_date >= weekly)
+        .filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_id == product,
+            InvCount.trans_date >= weekly,
+        )
         .all()
     )
 
@@ -96,6 +119,7 @@ def report_details(product):
     items_list = (
         db.session.query(InvCount)
         .filter(
+            InvCount.store_id == session["store"],
             InvCount.item_id == product,
             InvCount.count_time == "PM",
             InvCount.trans_date >= weekly,
@@ -111,7 +135,11 @@ def report_details(product):
         values.append(i.count_total)
         sales_list = (
             db.session.query(InvSales)
-            .filter(InvSales.item_id == product, InvSales.trans_date == i.trans_date)
+            .filter(
+                InvSales.store_id == session["store"],
+                InvSales.item_id == product,
+                InvSales.trans_date == i.trans_date,
+            )
             .first()
         )
         if sales_list:
@@ -123,18 +151,26 @@ def report_details(product):
     daily_sales = (
         db.session.query(
             func.extract("dow", InvSales.trans_date).label("dow"),
-            func.avg(InvSales.eachcount).label("average"),
+            func.avg(InvSales.each_count).label("average"),
         )
-        .filter(InvSales.item_id == product, InvSales.trans_date >= monthly)
+        .filter(
+            InvSales.store_id == session["store"],
+            InvSales.item_id == product,
+            InvSales.trans_date >= monthly,
+        )
         .group_by(func.extract("dow", InvSales.trans_date))
         .all()
     )
 
     weekly_avg = db.session.query(
         InvSales,
-        func.avg(InvSales.eachcount).label("sales_avg"),
+        func.avg(InvSales.each_count).label("sales_avg"),
         func.avg(InvSales.waste).label("waste_avg"),
-    ).filter(InvSales.item_id == product, InvSales.trans_date >= monthly)
+    ).filter(
+        InvSales.store_id == session["store"],
+        InvSales.item_id == product,
+        InvSales.trans_date >= monthly,
+    )
 
     values2 = []
     values3 = []
@@ -149,7 +185,7 @@ def report_details(product):
     result = (
         db.session.query(
             InvCount,
-            func.sum(InvSales.eachcount).label("sales_count"),
+            func.sum(InvSales.each_count).label("sales_count"),
             func.sum(InvSales.waste).label("sales_waste"),
             func.sum(InvPurchases.purchase_total).label("purchase_count"),
         )
@@ -170,6 +206,7 @@ def report_details(product):
         .group_by(InvCount.item_id, InvCount.trans_date)
         .order_by(InvCount.trans_date.desc())
         .filter(
+            InvCount.store_id == session["store"],
             InvCount.item_id == product,
             InvCount.count_time == "PM",
             InvCount.trans_date >= weekly,
@@ -181,18 +218,5 @@ def report_details(product):
     return render_template(
         "main/details.html",
         title="Item Variance Details",
-        count_daily=count_daily,
-        sales_weekly=sales_weekly,
-        purchase_weekly=purchase_weekly,
-        on_hand_weekly=on_hand_weekly,
-        item_name=item_name,
-        labels=labels,
-        labels2=labels,
-        values=values,
-        values2=values2,
-        values3=values3,
-        values4=values4,
-        day_sales=day_sales,
-        daily_sales=daily_sales,
-        result=result,
+        **locals(),
     )

@@ -1,7 +1,7 @@
 """
 count/routes.py is flask routes for counts, purchases, sales and items
 """
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 
 from stockcount import db
@@ -11,33 +11,45 @@ from stockcount.counts.forms import (
     EnterPurchasesForm,
     EnterSalesForm,
     NewItemForm,
+    StoreForm,
     UpdateCountForm,
     UpdateItemForm,
     UpdatePurchasesForm,
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales
+from stockcount.main.utils import set_user_access
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 
 
 @blueprint.route("/count/", methods=["GET", "POST"])
 @login_required
 def count():
     """Enter count for an item"""
+    location = Restaurants.query.filter_by(id=session["store"]).first()
     page = request.args.get("page", 1, type=int)
-    inv_items = InvCount.query.all()
-    group_items = db.session.query(InvCount).group_by(
-        InvCount.id, InvCount.trans_date, InvCount.count_time
+    inv_items = InvCount.query.filter(InvCount.store_id == session["store"]).all()
+    group_items = (
+        db.session.query(InvCount)
+        .filter(InvCount.store_id == session["store"])
+        .group_by(InvCount.id, InvCount.trans_date, InvCount.count_time)
     )
     ordered_items = group_items.order_by(
         InvCount.trans_date.desc(), InvCount.count_time.desc()
     ).paginate(page=page, per_page=10)
+
+    # forms
     form = EnterCountForm()
+    store_form = StoreForm()
+
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
         # Calculate the previous count
-        filter_item = InvCount.query.filter(InvCount.item_id == form.itemname.data.id)
+        filter_item = InvCount.query.filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_id == form.itemname.data.id,
+        )
         previous_count = filter_item.order_by(InvCount.trans_date.desc()).first()
         if previous_count is None:
             total_previous = 0
@@ -46,6 +58,7 @@ def count():
 
         # Check if count exists for same day and time
         double_count = InvCount.query.filter_by(
+            store_id=session["store"],
             item_id=form.itemname.data.id,
             trans_date=form.transdate.data,
             count_time=form.am_pm.data,
@@ -59,7 +72,9 @@ def count():
 
         # Calculate total purchases
         purchase_item = InvPurchases.query.filter_by(
-            item_id=form.itemname.data.id, trans_date=form.transdate.data
+            store_id=session["store"],
+            item_id=form.itemname.data.id,
+            trans_date=form.transdate.data,
         ).first()
         if purchase_item is None:
             total_purchase = 0
@@ -68,7 +83,9 @@ def count():
 
         # Calculate total sales
         sales_item = InvSales.query.filter_by(
-            item_id=form.itemname.data.id, trans_date=form.transdate.data
+            store_id=session["store"],
+            item_id=form.itemname.data.id,
+            trans_date=form.transdate.data,
         ).first()
         if sales_item is None:
             total_sales = 0
@@ -91,6 +108,7 @@ def count():
                 - (total_previous + total_purchase - total_sales)
             ),
             item_id=form.itemname.data.id,
+            store_id=session["store"],
         )
         db.session.add(inventory)
         db.session.commit()
@@ -100,13 +118,17 @@ def count():
         )
         return redirect(url_for("counts_blueprint.count"))
 
-    print(*locals().items(), sep="\n")
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.count"))
+
     return render_template(
         "counts/count.html",
         title="Enter Count",
-        form=form,
-        inv_items=inv_items,
-        ordered_items=ordered_items,
+        **locals(),
     )
 
 

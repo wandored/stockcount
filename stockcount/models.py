@@ -172,6 +172,7 @@ class InvCount(db.Model):
     theory = db.Column(db.Integer, nullable=False)
     daily_variance = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey("restaurants.id"), nullable=False)
 
     def __repr__(self):
         return f"InvCount('{self.trans_date}', '{self.count_time}', '{self.item_name}', '{self.case_count}', '{self.each_count}', '{self.count_total}, {self.item_id}')"
@@ -188,6 +189,7 @@ class InvPurchases(db.Model):
     each_count = db.Column(db.Integer, nullable=False)
     purchase_total = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey("restaurants.id"), nullable=False)
 
     def __repr__(self):
         return f"InvPurchases('{self.trans_date}', '{self.item_name}', '{self.count_time}', '{self.case_count}', '{self.purchase_total}, {self.item_id}')"
@@ -204,6 +206,7 @@ class InvSales(db.Model):
     waste = db.Column(db.Integer, nullable=False)
     sales_total = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey("inv_items.id"), nullable=False)
+    store_id = db.Column(db.Integer, db.ForeignKey("restaurants.id"), nullable=False)
 
     def __repr__(self):
         return f"InvSales('{self.trans_date}', '{self.item_name}', '{self.each_count}', '{self.waste}', '{self.sales_total}', {self.item_id})"
