@@ -137,6 +137,16 @@ class Calendar(db.Model):
         }
 
 
+class Item(db.Model):
+    __tablename__ = "item"
+
+    itemid = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String)
+    category1 = db.Column(db.String)
+    category2 = db.Column(db.String)
+    category3 = db.Column(db.String)
+
+
 class Company(db.Model):
     __tablename__ = "company"
 
@@ -150,12 +160,13 @@ class InvItems(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     item_name = db.Column(db.String(), nullable=False)
     case_pack = db.Column(db.Integer)
+    store_id = db.Column(db.Integer(), nullable=False)
     count = db.relationship("InvCount", backref="item", lazy=True)
     buy = db.relationship("InvPurchases", backref="item", lazy=True)
     sell = db.relationship("InvSales", backref="item", lazy=True)
 
     def __repr__(self):
-        return f"InvItems('{self.id}', '{self.item_name}', '{self.case_pack}')"
+        return f"InvItems('{self.id}', '{self.item_name}', '{self.case_pack}' '{self.store_id}')"
 
 
 class InvCount(db.Model):

@@ -44,7 +44,7 @@
     {% for item in inv_items %}
       <div class="media-body">
           <a class="me-2" href="{{ url_for('counts_blueprint.update_item', item_id=item.id) }}">{{ item.item_name }}</a>
-          <small class="text-muted">{{ item.casepack }} per Case</small>
+          <small class="text-muted">{{ item.case_pack }} per Case</small>
       </div>
     {% endfor %}
 </div>

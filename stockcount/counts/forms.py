@@ -16,7 +16,7 @@ from wtforms.fields import DateField
 from wtforms.validators import DataRequired
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 
-from stockcount.models import InvItems, Restaurants
+from stockcount.models import InvItems, Restaurants, Item
 
 
 def store_query():
@@ -25,6 +25,10 @@ def store_query():
         .order_by(Restaurants.name)
         .all()
     )
+
+def stockcount_query():
+    # return InvCount items that begin with "BEEF"
+    return Item.query.filter(Item.name.like("BEEF%")).order_by(Item.name).all()
 
 
 def item_query():
@@ -50,7 +54,13 @@ class StoreForm(FlaskForm):
 
 
 class NewItemForm(FlaskForm):
-    itemname = StringField("Item Name: ", validators=[DataRequired()])
+    itemname = QuerySelectField(
+            "Select Item: ",
+            query_factory=stockcount_query,
+            allow_blank=False,
+            get_label="name",
+            get_pk=lambda x: x.name,
+            )
     casepack = IntegerField("# per Case: ", validators=[DataRequired()])
     submit = SubmitField("Submit")
 
@@ -69,7 +79,6 @@ class EnterCountForm(FlaskForm):
     )
     casecount = IntegerField("Case Count: ", default=0)
     eachcount = IntegerField("Each Count: ", default=0)
-    store_id = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Submit!")
 
 
@@ -77,10 +86,9 @@ class UpdateCountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d")
     am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
     itemname = StringField("Item Name: ", validators=[DataRequired()])
-    itemid = HiddenField(validators=[DataRequired()])
+    item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Case Count: ")
     eachcount = IntegerField("Each Count: ")
-    store_id = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Submit!")
 
 
@@ -92,7 +100,6 @@ class EnterPurchasesForm(FlaskForm):
     )
     casecount = IntegerField("Cases Purchased: ", default=0)
     eachcount = IntegerField("Each Purchased: ", default=0)
-    store_id = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Submit!")
 
 
@@ -103,7 +110,6 @@ class UpdatePurchasesForm(FlaskForm):
     item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Cases Purchased")
     eachcount = IntegerField("Each Purchased")
-    store_id = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Submit!")
 
 
@@ -115,7 +121,6 @@ class EnterSalesForm(FlaskForm):
     )
     eachcount = IntegerField("Each Sales: ", default=0)
     waste = IntegerField("Waste", default=0)
-    store_id = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Submit!")
 
 
@@ -127,4 +132,3 @@ class UpdateSalesForm(FlaskForm):
     waste = IntegerField("Waste: ")
     submit = SubmitField("Submit!")
     item_id = HiddenField(validators=[DataRequired()])
-    store_id = HiddenField(validators=[DataRequired()])
