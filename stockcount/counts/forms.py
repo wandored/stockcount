@@ -21,7 +21,7 @@ from stockcount.models import InvItems, Restaurants, Item
 
 def store_query():
     return (
-        Restaurants.query.filter(Restaurants.active == "true", Restaurants.toast_id != 0)
+        Restaurants.query.filter(Restaurants.id.in_(session["access"]))
         .order_by(Restaurants.name)
         .all()
     )
@@ -32,7 +32,7 @@ def stockcount_query():
 
 
 def item_query():
-    return InvItems.query
+    return InvItems.query.filter(InvItems.store_id == session['store'])
 
 
 def item_number():

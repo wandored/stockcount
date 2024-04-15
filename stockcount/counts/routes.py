@@ -22,21 +22,25 @@ from stockcount.counts.utils import calculate_totals
 from stockcount.main.utils import set_user_access
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 
+from icecream import ic
+
 
 @blueprint.route("/count/", methods=["GET", "POST"])
 @login_required
 def count():
     """Enter count for an item"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     page = request.args.get("page", 1, type=int)
     inv_items = InvCount.query.filter(InvCount.store_id == session["store"]).all()
-    print(inv_items)
-    group_items = (
-        db.session.query(InvCount)
+    count_dates = (
+        db.session.query(
+            InvCount.trans_date,
+            InvCount.count_time,
+        )
         .filter(InvCount.store_id == session["store"])
-        .group_by(InvCount.id, InvCount.trans_date, InvCount.count_time)
+        .group_by(InvCount.trans_date, InvCount.count_time)
     )
-    ordered_items = group_items.order_by(
+    ordered_items = count_dates.order_by(
         InvCount.trans_date.desc(), InvCount.count_time.desc()
     ).paginate(page=page, per_page=10)
 
@@ -45,10 +49,13 @@ def count():
     store_form = StoreForm()
 
     if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
         data = store_form.stores.data
         for x in data:
-            session["store"] = x.id
+            if x.id in session["access"]:
+                session["store"] = x.id
+                flash(f"Store changed to {x.name}", "success")
+            else:
+                flash("You do not have access to that store!", "danger")
         return redirect(url_for("counts_blueprint.count"))
 
     if form.validate_on_submit():
@@ -138,7 +145,7 @@ def count():
 @login_required
 def update_count(count_id):
     """route for count/id/update"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvCount.query.get_or_404(count_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
@@ -146,6 +153,14 @@ def update_count(count_id):
     inv_items = InvCount.query.all()
     form = UpdateCountForm()
     store_form = StoreForm()
+
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.count"))
+
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.item_id.data).first()
         filter_item = InvCount.query.filter(
@@ -201,14 +216,6 @@ def update_count(count_id):
         form.itemname.data = item.item_name
         form.casecount.data = item.case_count
         form.eachcount.data = item.each_count
-
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("counts_blueprint.count"))
-
     return render_template(
         "counts/update_count.html",
         title="Update Item Count",
@@ -221,7 +228,7 @@ def update_count(count_id):
 @login_required
 def delete_count(count_id):
     """Delete an item count"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvCount.query.get_or_404(count_id)
     db.session.delete(item)
     db.session.commit()
@@ -233,21 +240,31 @@ def delete_count(count_id):
 @login_required
 def purchases():
     """Enter new purchases"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
-    purchase_items = InvPurchases.query.all()
-    inv_items = InvItems.query.all()
-
-    # Pagination
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    purchase_items = InvPurchases.query.filter(
+        InvPurchases.store_id == session["store"]
+    ).all()
+    inv_items = InvItems.query.filter(InvPurchases.store_id == session["store"]).all()
     page = request.args.get("page", 1, type=int)
-    group_purchases = db.session.query(InvPurchases).group_by(
-        InvPurchases.id, InvPurchases.trans_date
+    purchase_dates = (
+        db.session.query(InvPurchases.trans_date)
+        .filter_by(store_id=session["store"])
+        .group_by(InvPurchases.trans_date)
     )
-    ordered_purchases = group_purchases.order_by(
+    ordered_purchases = purchase_dates.order_by(
         InvPurchases.trans_date.desc()
     ).paginate(page=page, per_page=10)
 
     form = EnterPurchasesForm()
     store_form = StoreForm()
+
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.purchases"))
+
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
@@ -272,6 +289,7 @@ def purchases():
                 items_object.case_pack * form.casecount.data + form.eachcount.data
             ),
             item_id=form.itemname.data.id,
+            store_id=session["store"],
         )
         db.session.add(purchase)
         db.session.commit()
@@ -281,14 +299,7 @@ def purchases():
         )
         calculate_totals(items_object.id)
         return redirect(url_for("counts_blueprint.purchases"))
-
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("counts_blueprint.count"))
-
+    ic(locals())
     return render_template(
         "counts/purchases.html",
         title="Purchases",
@@ -299,13 +310,24 @@ def purchases():
 @blueprint.route("/purchases/<int:purchase_id>/update", methods=["GET", "POST"])
 @login_required
 def update_purchases(purchase_id):
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvPurchases.query.get_or_404(purchase_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
         return redirect(url_for("counts_blueprint.purchases"))
-    inv_items = InvPurchases.query.all()
+    inv_items = InvPurchases.query.filter(
+        InvPurchases.store_id == session["store"]
+    ).all()
     form = UpdatePurchasesForm()
+    store_form = StoreForm()
+
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.purchases"))
+
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.item_id.data).first()
         item.trans_date = form.transdate.data
@@ -336,7 +358,7 @@ def update_purchases(purchase_id):
 @blueprint.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @login_required
 def delete_purchases(purchase_id):
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvPurchases.query.get_or_404(purchase_id)
     unit = InvItems.query.filter_by(id=item.item_id).first()
     db.session.delete(item)
@@ -350,15 +372,26 @@ def delete_purchases(purchase_id):
 @login_required
 def sales():
     """Enter new sales for item"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     page = request.args.get("page", 1, type=int)
-    sales_items = InvSales.query.all()
-    group_sales = db.session.query(InvSales).group_by(InvSales.id, InvSales.trans_date)
-    ordered_sales = group_sales.order_by(InvSales.trans_date.desc()).paginate(
+    sales_items = InvSales.query.filter(InvSales.store_id == session["store"]).all()
+    sales_dates = (
+        db.session.query(InvSales.trans_date)
+        .filter_by(store_id=session["store"])
+        .group_by(InvSales.trans_date)
+    )
+    ordered_sales = sales_dates.order_by(InvSales.trans_date.desc()).paginate(
         page=page, per_page=10
     )
     form = EnterSalesForm()
     store_form = StoreForm()
+
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.sales"))
 
     if form.validate_on_submit():
         unit = InvItems.query.filter_by(id=form.itemname.data.id).first()
@@ -382,6 +415,7 @@ def sales():
             waste=form.waste.data,
             sales_total=(form.eachcount.data + form.waste.data),
             item_id=form.itemname.data.id,
+            store_id=session["store"],
         )
         db.session.add(sale)
         db.session.commit()
@@ -391,14 +425,6 @@ def sales():
         )
         calculate_totals(unit.id)
         return redirect(url_for("counts_blueprint.sales"))
-
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("counts_blueprint.count"))
-
     return render_template(
         "counts/sales.html",
         title="Sales",
@@ -410,13 +436,22 @@ def sales():
 @login_required
 def update_sales(sales_id):
     """Update sales items"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvSales.query.get_or_404(sales_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
         return redirect(url_for("counts_blueprint.sales"))
     inv_items = InvSales.query.all()
     form = UpdateSalesForm()
+    store_form = StoreForm()
+
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.sales"))
+
     if form.validate_on_submit():
         unit = InvItems.query.filter_by(id=form.item_id.data).first()
         item.trans_date = form.transdate.data
@@ -446,7 +481,7 @@ def update_sales(sales_id):
 @login_required
 def delete_sales(sales_id):
     """Delete sales items"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     item = InvSales.query.get_or_404(sales_id)
     unit = InvItems.query.filter_by(id=item.item_id).first()
     db.session.delete(item)
@@ -461,7 +496,7 @@ def delete_sales(sales_id):
 def new_item():
     """Create new inventory items"""
     print(session["store"])
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
     form = NewItemForm()
     store_form = StoreForm()
@@ -474,15 +509,18 @@ def new_item():
 
     if form.validate_on_submit():
         item = InvItems(
-                item_name=form.itemname.data.name,
-                case_pack=form.casepack.data,
-                store_id=session["store"],
-                        )
+            item_name=form.itemname.data.name,
+            case_pack=form.casepack.data,
+            store_id=session["store"],
+        )
         db.session.add(item)
         db.session.commit()
-        flash(f"{form.itemname.data.name} has been added to your stockcount items list!", "success")
+        flash(
+            f"{form.itemname.data.name} has been added to your stockcount items list!",
+            "success",
+        )
         return redirect(url_for("counts_blueprint.new_item"))
-    
+
     return render_template(
         "counts/new_item.html",
         title="New Inventory Item",
@@ -495,11 +533,12 @@ def new_item():
 @login_required
 def update_item(item_id):
     """Update current inventory items"""
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
     item = InvItems.query.get_or_404(item_id)
     form = UpdateItemForm()
     store_form = StoreForm()
+
     if store_form.storeform_submit.data and store_form.validate():
         # session["date_selected"] = fiscal_dates["start_day"]
         data = store_form.stores.data
@@ -529,12 +568,13 @@ def update_item(item_id):
 @login_required
 def delete_item(item_id):
     """Delete current items"""
-    #TODO: method to delete all counts for an item
-    location = Restaurants.query.filter_by(id=session["store"]).first()
+    # TODO: method to delete all counts for an item
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
     item = InvItems.query.get_or_404(item_id)
     counts = InvCount.query.filter_by(item_id=item.id).first()
     store_form = StoreForm()
+
     if store_form.storeform_submit.data and store_form.validate():
         data = store_form.stores.data
         for x in data:
@@ -542,8 +582,11 @@ def delete_item(item_id):
         return redirect(url_for("counts_blueprint.new_item"))
 
     if counts is not None:
-        flash(f'you must delete {item.item_name} from all counts before deleting', 'warning')
-        return redirect(url_for('counts_blueprint.new_item'))
+        flash(
+            f"you must delete {item.item_name} from all counts before deleting",
+            "warning",
+        )
+        return redirect(url_for("counts_blueprint.new_item"))
 
     db.session.delete(item)
     db.session.commit()
