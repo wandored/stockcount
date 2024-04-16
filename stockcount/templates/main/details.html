@@ -21,28 +21,28 @@
               </tr>
             </thead>
             <tbody>
-              {% for c, s, w, p in result %}
+              {% for r in result %}
                   <tr>
-                    <td>{{ c.trans_date.strftime('%A-%m/%d') }}</td>
-                    <td>{{ c.previous_total }}</td>
-                    {% if p %}
-                      <td> + {{ p }}</td>
+                    <td>{{ r.trans_date.strftime('%A-%m/%d') }}</td>
+                    <td>{{ r.previous_total }}</td>
+                    {% if r.purchase_count %}
+                      <td> + {{ r.purchase_count }}</td>
                     {% else %}
                       <td> + 0</td>
                     {% endif %}
-                    {% if s %}
-                      <td> - {{ s }}</td>
+                    {% if r.sales_count %}
+                      <td> - {{ r.sales_count }}</td>
                     {% else %}
                       <td> - 0</td>
                     {% endif %}
-                    {% if s %}
-                      <td> - {{ w }}</td>
+                    {% if r.sales_waste %}
+                      <td> - {{ r.sales_waste }}</td>
                     {% else %}
                       <td> - 0</td>
                     {% endif %}
-                    <td> = {{ c.theory }}</td>
-                    <td> - {{ c.count_total }}</td>
-                    <td> = {{ c.daily_variance }}</td>
+                    <td> = {{ r.theory }}</td>
+                    <td> - {{ r.count_total }}</td>
+                    <td> = {{ r.daily_variance }}</td>
                   </tr>
               {% endfor %}
             </tbody>
@@ -121,7 +121,7 @@
               labels: {{ labels | safe }},
               datasets: [{
                   label: "Sales",
-                  data: {{ day_sales | safe }},
+                  data: {{ unit_sales | safe }},
                   borderColor: "#c45850",
                   backgroundColor: "#c45850",
                   borderWidth:2,
@@ -129,7 +129,7 @@
                   fill: false,
                 }, {
                   label: "On-Hand",
-                  data: {{ values | safe }},
+                  data: {{ unit_onhand | safe }},
                   borderColor: "#3e95cd",
                   backgroundColor: "#7bb6dd",
                   borderWidth:2,
@@ -160,7 +160,7 @@
                 labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
                 datasets: [{
                   label: "Daily Sales Average",
-                  data: {{ values2 | safe }},
+                  data: {{ day_avg_sales | safe }},
                   fill: false,
                   backgroundColor: [
                    'rgba(255, 99, 132, 0.6)',
@@ -171,7 +171,7 @@
                   borderWidth: 1
                 }, {
                   label: "Average Sales/Day",
-                  data: {{ values3 | safe }},
+                  data: {{ avg_sales_day | safe }},
                   backgroundColor: 'rgba(0, 72, 186)',
                   borderColor: 'rgb(0, 72, 186)',
                   borderWidth: 1,
@@ -179,7 +179,7 @@
                   fill: false,
                 }, {
                   label: "Average Waste/Day",
-                  data: {{ values4 | safe }},
+                  data: {{ avg_waste_day | safe }},
                   backgroundColor: 'rgba(59, 122, 87)',
                   borderColor: 'rgb(59, 122, 87)',
                   borderWidth: 1,
@@ -194,20 +194,6 @@
         </div>
       </div>
     </div>
-  </div>
-  <!-- weekly boxes
-    <div class="col-lg-3 p-1">
-      <div class="content-section bg-primary">
-        <legend class="text-white mb-1">Average Sales per Day</legend>
-        {% for d in daily_sales %}
-          <div class="card text-center text-dark bg-light">
-            <div class="card-body">
-              <h5 class="card-text">{{ d.dow }} - {{ "%.1f"|format(d.average) }}</h5>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    </div> -->
   </div>
 </div>
 {% endblock content %}

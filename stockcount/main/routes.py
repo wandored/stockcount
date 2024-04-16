@@ -3,14 +3,13 @@ from datetime import timedelta
 
 from flask import flash, redirect, render_template, session, url_for
 from flask_security import current_user, login_required
+from icecream import ic
 from sqlalchemy import and_, func
 
 from stockcount import db
 from stockcount.main import blueprint
 from stockcount.main.utils import set_user_access
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
-
-from icecream import ic
 
 
 @blueprint.route("/home/")
@@ -81,7 +80,6 @@ def report_details(product):
         .first()
     )
     sales_weekly = db.session.query(
-        InvSales,
         func.sum(InvSales.each_count).label("total"),
         func.avg(InvSales.each_count).label("sales_avg"),
     ).filter(
@@ -90,14 +88,14 @@ def report_details(product):
         InvSales.trans_date >= weekly,
     )
     purchase_weekly = db.session.query(
-        InvPurchases, func.sum(InvPurchases.purchase_total).label("total")
+        func.sum(InvPurchases.purchase_total).label("total")
     ).filter(
         InvPurchases.store_id == session["store"],
         InvPurchases.item_id == product,
         InvPurchases.trans_date >= weekly,
     )
     on_hand_weekly = db.session.query(
-        InvCount, func.avg(InvCount.count_total).label("average")
+        func.avg(InvCount.count_total).label("average")
     ).filter(
         InvCount.store_id == session["store"],
         InvCount.item_id == product,
@@ -105,7 +103,7 @@ def report_details(product):
     )
 
     # Chart 1
-    items_list = (
+    unit_query = (
         db.session.query(InvCount)
         .filter(
             InvCount.store_id == session["store"],
@@ -117,11 +115,11 @@ def report_details(product):
         .all()
     )
     labels = []
-    values = []
-    day_sales = []
-    for i in items_list:
+    unit_onhand = []
+    unit_sales = []
+    for i in unit_query:
         labels.append(i.trans_date.strftime("%A"))
-        values.append(i.count_total)
+        unit_onhand.append(i.count_total)
         sales_list = (
             db.session.query(InvSales)
             .filter(
@@ -132,12 +130,12 @@ def report_details(product):
             .first()
         )
         if sales_list:
-            day_sales.append(sales_list.sales_total)
+            unit_sales.append(sales_list.sales_total)
         else:
-            day_sales.append(0)
+            unit_sales.append(0)
 
     # Chart #2
-    daily_sales = (
+    sales_query = (
         db.session.query(
             func.extract("dow", InvSales.trans_date).label("dow"),
             func.avg(InvSales.each_count).label("average"),
@@ -150,38 +148,51 @@ def report_details(product):
         .group_by(func.extract("dow", InvSales.trans_date))
     )
 
-    weekly_avg = db.session.query(
-        InvSales,
-        func.avg(InvSales.each_count).label("sales_avg"),
-        func.avg(InvSales.waste).label("waste_avg"),
-    ).filter(
-        InvSales.store_id == session["store"],
-        InvSales.item_id == product,
-        InvSales.trans_date >= monthly,
+    weekly_avg = (
+        db.session.query(
+            InvSales,
+            func.avg(InvSales.each_count).label("sales_avg"),
+            func.avg(InvSales.waste).label("waste_avg"),
+        )
+        .filter(
+            InvSales.store_id == session["store"],
+            InvSales.item_id == product,
+            InvSales.trans_date >= monthly,
+        )
+        .group_by(InvSales.id)
     )
 
-    values2 = []
-    values3 = []
-    values4 = []
+    daily_sales = []
+    for row in sales_query:
+        daily_sales.append(float(row.average))
+    day_avg_sales = []
     for d in daily_sales:
-        values2.append(d.average)
-        for w in weekly_avg:
-            values3.append(w.sales_avg)
-            values4.append(w.waste_avg)
+        day_avg_sales.append(d)
+    avg_sales_day = []
+    avg_waste_day = []
+    for w in weekly_avg:
+        avg_sales_day.append(float(w.sales_avg))
+        avg_waste_day.append(float(w.waste_avg))
 
     # Details Table
     result = (
         db.session.query(
-            InvCount,
+            InvCount.trans_date,
+            InvCount.previous_total,
+            func.sum(InvPurchases.purchase_total).label("purchase_count"),
             func.sum(InvSales.each_count).label("sales_count"),
             func.sum(InvSales.waste).label("sales_waste"),
-            func.sum(InvPurchases.purchase_total).label("purchase_count"),
+            InvCount.theory,
+            InvCount.count_total,
+            InvCount.daily_variance,
         )
         .select_from(InvCount)
         .outerjoin(
             InvSales,
             and_(
-                InvSales.trans_date == InvCount.trans_date, InvSales.item_id == product
+                InvSales.trans_date == InvCount.trans_date,
+                InvSales.item_id == product,
+                InvSales.store_id == session["store"],
             ),
         )
         .outerjoin(
@@ -189,9 +200,16 @@ def report_details(product):
             and_(
                 InvPurchases.trans_date == InvCount.trans_date,
                 InvPurchases.item_id == product,
+                InvPurchases.store_id == session["store"],
             ),
         )
-        .group_by(InvCount.item_id, InvCount.trans_date)
+        .group_by(
+            InvCount.trans_date,
+            InvCount.previous_total,
+            InvCount.count_total,
+            InvCount.theory,
+            InvCount.daily_variance,
+        )
         .order_by(InvCount.trans_date.desc())
         .filter(
             InvCount.store_id == session["store"],
@@ -203,7 +221,6 @@ def report_details(product):
 
     item_name = db.session.query(InvItems).filter(InvItems.id == product).first()
 
-    ic(locals())
     return render_template(
         "main/details.html",
         title="Item Variance Details",

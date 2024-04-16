@@ -1,7 +1,8 @@
 from flask_security import current_user
-from stockcount.models import Users
 
-
+from stockcount.models import Users, db, InvCount, InvSales, InvPurchases
+from sqlalchemy import func
+from flask import session
 
 
 def set_user_access():
@@ -11,7 +12,7 @@ def set_user_access():
     for store in store_list.stores:
         print(store.id)
         if store.id in [99, 98]:
-            access = [3,4,5,6,9,10,11,12,13,14,15,16,17,18,19]
+            access = [3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
             return access
         access.append(store.id)
     return access
