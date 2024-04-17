@@ -281,7 +281,6 @@ def purchases():
 
         purchase = InvPurchases(
             trans_date=form.transdate.data,
-            count_time="PM",
             item_name=form.itemname.data.item_name,
             case_count=form.casecount.data,
             each_count=form.eachcount.data,
@@ -409,7 +408,6 @@ def sales():
 
         sale = InvSales(
             trans_date=form.transdate.data,
-            count_time="PM",
             item_name=form.itemname.data.item_name,
             each_count=form.eachcount.data,
             waste=form.waste.data,
