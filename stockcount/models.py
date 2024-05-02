@@ -1,4 +1,5 @@
-""" sqlalchemy database models """
+"""sqlalchemy database models"""
+
 from datetime import datetime
 
 from flask import current_app
@@ -88,6 +89,9 @@ class Users(db.Model, UserMixin):
         "Restaurants", secondary=stores_users, backref="users", lazy=True
     )
 
+    def __str__(self):
+        return f"{self.first_name}, {self.last_name}, {self.email}, {self.active}, {self.roles}, {self.stores}"
+
 
 user_datastore = SQLAlchemySessionUserDatastore(db.session, Users, Roles)
 
@@ -102,6 +106,9 @@ class UnitsOfMeasure(db.Model):
     measure_type = db.Column(db.String(64))
     base_qty = db.Column(db.Float)
     base_uofm = db.Column(db.String(64))
+
+    def __repr__(self):
+        return f"UnitsOfMeasure('{self.uofm_id}', '{self.name}', '{self.equivalent_qty}', '{self.equivalent_uofm}', '{self.measure_type}', '{self.base_qty}', '{self.base_uofm}')"
 
 
 class Calendar(db.Model):
@@ -123,16 +130,8 @@ class Calendar(db.Model):
     dow = db.Column(db.Integer)
     day = db.Column(db.String(64))
 
-    def as_dict(self):
-        return {
-            "date": self.date,
-            "week": self.week,
-            "period": self.period,
-            "quarter": self.quarter,
-            "year": self.year,
-            "dow": self.dow,
-            "day": self.day,
-        }
+    def __repr__(self):
+        return f"Calendar('{self.date}', '{self.week}', '{self.week_start}', '{self.week_end}', '{self.period}', '{self.period_start}', '{self.period_end}', '{self.quarter}', '{self.quarter_start}', '{self.quarter_end}', '{self.year}', '{self.year_start}', '{self.year_end}', '{self.dow}', '{self.day}')"
 
 
 class Item(db.Model):
@@ -144,12 +143,18 @@ class Item(db.Model):
     category2 = db.Column(db.String)
     category3 = db.Column(db.String)
 
+    def __repr__(self):
+        return f"Item('{self.itemid}', '{self.name}', '{self.category1}', '{self.category2}', '{self.category3}')"
+
 
 class Company(db.Model):
     __tablename__ = "company"
 
     companyid = db.Column(db.String, primary_key=True)
     name = db.Column(db.String)
+
+    def __repr__(self):
+        return f"Company('{self.companyid}', '{self.name}')"
 
 
 class InvItems(db.Model):

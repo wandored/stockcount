@@ -1,6 +1,7 @@
 """
 count/routes.py is flask routes for counts, purchases, sales and items
 """
+
 from flask import flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +12,7 @@ from stockcount.counts.forms import (
     EnterCountForm,
     EnterPurchasesForm,
     EnterSalesForm,
+    SalesForm,
     NewItemForm,
     StoreForm,
     UpdateCountForm,
@@ -255,9 +257,7 @@ def purchases():
         InvPurchases.trans_date.desc()
     ).paginate(page=page, per_page=10)
 
-    form = EnterPurchasesForm()
     store_form = StoreForm()
-
     if store_form.storeform_submit.data and store_form.validate():
         # session["date_selected"] = fiscal_dates["start_day"]
         data = store_form.stores.data
@@ -265,6 +265,7 @@ def purchases():
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.purchases"))
 
+    form = EnterPurchasesForm()
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
 
@@ -298,7 +299,6 @@ def purchases():
         )
         calculate_totals(items_object.id)
         return redirect(url_for("counts_blueprint.purchases"))
-    ic(locals())
     return render_template(
         "counts/purchases.html",
         title="Purchases",
@@ -317,9 +317,8 @@ def update_purchases(purchase_id):
     inv_items = InvPurchases.query.filter(
         InvPurchases.store_id == session["store"]
     ).all()
-    form = UpdatePurchasesForm()
-    store_form = StoreForm()
 
+    store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
         # session["date_selected"] = fiscal_dates["start_day"]
         data = store_form.stores.data
@@ -327,6 +326,7 @@ def update_purchases(purchase_id):
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.purchases"))
 
+    form = UpdatePurchasesForm()
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.item_id.data).first()
         item.trans_date = form.transdate.data
@@ -372,8 +372,10 @@ def delete_purchases(purchase_id):
 def sales():
     """Enter new sales for item"""
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
+
+    # crate list of daily sales
     page = request.args.get("page", 1, type=int)
-    sales_items = InvSales.query.filter(InvSales.store_id == session["store"]).all()
+    sales_list = InvSales.query.filter(InvSales.store_id == session["store"]).all()
     sales_dates = (
         db.session.query(InvSales.trans_date)
         .filter_by(store_id=session["store"])
@@ -382,9 +384,8 @@ def sales():
     ordered_sales = sales_dates.order_by(InvSales.trans_date.desc()).paginate(
         page=page, per_page=10
     )
-    form = EnterSalesForm()
-    store_form = StoreForm()
 
+    store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
         # session["date_selected"] = fiscal_dates["start_day"]
         data = store_form.stores.data
@@ -392,37 +393,49 @@ def sales():
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.sales"))
 
-    if form.validate_on_submit():
-        unit = InvItems.query.filter_by(id=form.itemname.data.id).first()
+    # create sales form for input
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    multi_form = SalesForm(sales=item_list)
+    for form in multi_form.sales:
+        for item in item_list:
+            form.itemname.choices = form.itemname.choices + [(item[1])]
+    for item in multi_form.sales.data:
+        for key, value in item.items():
+            ic(key, value)
 
-        # Check if sales exists for same day and time
-        double_sales = InvSales.query.filter_by(
-            item_id=form.itemname.data.id, trans_date=form.transdate.data
-        ).first()
-        if double_sales is not None:
-            flash(
-                f"{form.itemname.data.item_name} already has Sales on {form.transdate.data}, please enter a different date or edit the existing sale!",
-                "warning",
+    if multi_form.submit.data:
+        ic(multi_form.sales.data)
+        print("submitted")
+        if multi_form.validate():
+            print("validated")
+            ic(multi_form.transdate.data)
+        else:
+            print("not validated")
+            ic(multi_form.errors)
+
+        for sales_entry in multi_form.sales.data:
+            ic(sales_entry.items())
+            sale_item = InvSales(
+                trans_date=multi_form.transdate.data,
+                item_name=sales_entry["itemname"],
+                each_count=sales_entry["eachcount"],
+                waste=sales_entry["waste"],
+                sales_total=(sales_entry["eachcount"] + sales_entry["waste"]),
+                item_id=sales_entry["item_id"],
+                store_id=session["store"],
             )
-            return redirect(url_for("counts_blueprint.sales"))
-
-        sale = InvSales(
-            trans_date=form.transdate.data,
-            item_name=form.itemname.data.item_name,
-            each_count=form.eachcount.data,
-            waste=form.waste.data,
-            sales_total=(form.eachcount.data + form.waste.data),
-            item_id=form.itemname.data.id,
-            store_id=session["store"],
-        )
-        db.session.add(sale)
-        db.session.commit()
-        flash(
-            f"Sales of {form.eachcount.data + form.waste.data} {form.itemname.data.item_name} submitted on {form.transdate.data}!",
-            "success",
-        )
-        calculate_totals(unit.id)
+            ic(sale_item.item_id, sale_item.item_name, sale_item.sales_total)
+            # db.session.add(sale_item)
+        # db.session.commit()
+        # flash(
+        #         f"Sales of {sales_form.eachcount.data + sales_form.waste.data} {sales_form.itemname.data.item_name} submitted on {multi_form.transdate.data}!",
+        #         "success",
+        #         )
+        # unit = InvItems.query.filter_by(id=sales_entry['itemname'].id).first()
+        # calculate_totals(unit.id)
         return redirect(url_for("counts_blueprint.sales"))
+
+    ic(multi_form.errors)
     return render_template(
         "counts/sales.html",
         title="Sales",

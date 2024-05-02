@@ -3,6 +3,7 @@ stockcount app initialization
 """
 
 from flask import Flask
+from flask_wtf.csrf import CSRFProtect
 from importlib import import_module
 
 from stockcount.config import Config
