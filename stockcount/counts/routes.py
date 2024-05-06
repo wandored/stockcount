@@ -98,7 +98,7 @@ def count():
             items_object = InvItems.query.filter_by(id=count_entry["item_id"]).first()
             filter_item = InvCount.query.filter(
                 InvCount.store_id == session["store"],
-                InvCount.item_id == multi_form.counts.data[0]["item_id"],
+                InvCount.item_id == count_entry["item_id"],
             )
             previous_count = filter_item.order_by(InvCount.trans_date.desc()).first()
             if previous_count is None:
