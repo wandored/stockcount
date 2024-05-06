@@ -60,8 +60,14 @@ def count():
         return redirect(url_for("counts_blueprint.count"))
 
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can count them!", "warning")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+        
     multi_form = CountForm(counts=item_list)
     index = 0
+
     for form in multi_form.counts:
         form.itemname.data = item_list[index].item_name
         form.item_id.data = item_list[index].id
