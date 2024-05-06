@@ -3,6 +3,7 @@ stockcount app initialization
 """
 
 from flask import Flask
+from flask_wtf.csrf import CSRFProtect
 from importlib import import_module
 
 from stockcount.config import Config
@@ -13,6 +14,7 @@ def register_extensions(app):
     db.init_app(app)
     mail.init_app(app)
     security.init_app(app, user_datastore)
+    csrf = CSRFProtect(app)
 
 
 def register_blueprints(app):

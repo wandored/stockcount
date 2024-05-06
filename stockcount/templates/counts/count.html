@@ -1,113 +1,117 @@
 {% extends 'layout.html' %}
 {% block content %}
 <div class="content-section">
-    <form method="POST" action="">
-        {{ form.hidden_tag() }}
-        <fieldset id="" class="form-group mb-2">
-            <legend class="border-bottom mb-2">Enter Count</legend>
-            <div class="form-group mb-1">
-                {{ form.transdate.label(class="form=control-label") }}
-                {% if form.transdate.errors %}
-                    {{ form.transdate(class="form=control form-control-md is-invalid") }}
-                    <div class="invalid-feedback">
-                        {% for error in form.transdate.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    {{ form.transdate(class="form=control form-control-md") }}
-                {% endif %}
-            </div>
-            <div class="form-group mb-1">
-                {{ form.am_pm.label(class="form=control-label") }}
-                {% if form.am_pm.errors %}
-                    {{ form.am_pm(class="form=control form-control-md is-invalid") }}
-                    <div class="invalid-feedback">
-                        {% for error in form.am_pm.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    {{ form.am_pm(class="form=control form-control-md") }}
-                {% endif %}
-            </div>
-            <div class="form-group mb-1">
-                {{ form.itemname.label(class="form=control-label") }}
-                {% if form.itemname.errors %}
-                    {{ form.itemname(class="form=control form-control-md is-invalid") }}
-                    <div class="invalid-feedback">
-                        {% for error in form.itemname.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    {{ form.itemname(class="form=control form-control-md") }}
-                {% endif %}
-            </div>
-            <div class="form-group mb-1">
-                {{ form.casecount.label(class="form=control-label") }}
-                {% if form.casecount.errors %}
-                    {{ form.casecount(class="form=control form-control-md is-invalid") }}
-                    <div class="invalid-feedback">
-                        {% for error in form.casecount.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                {{ form.casecount(class="form=control form-control-md") }}
-                {% endif %}
-            </div>
-            <div class="form-group mb-1">
-                {{ form.eachcount.label(class="form=control-label") }}
-                {% if form.eachcount.errors %}
-                    {{ form.eachcount(class="form=control form-control-md is-invalid") }}
-                    <div class="invalid-feedback">
-                        {% for error in form.eachcount.errors %}
-                            <span>{{ error }}</span>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                {{ form.eachcount(class="form=control form-control-md") }}
-                {% endif %}
-            </div>
-        </fieldset>
-        <div class="form-group">
-            {{ form.submit(class="btn btn-primary") }}
+  <form method="POST" action="">
+    {{ multi_form.hidden_tag() }}
+    <fieldset id="" class="form-group mb-2">
+      <legend class="border-bottom mb-2">Enter Count</legend>
+      <div class="form-group mb-1">
+        {{ multi_form.transdate.label(class="form-control-label") }}
+        {% if multi_form.transdate.errors %}
+        {{ multi_form.transdate(class="form-control form-control-md is-invalid") }}
+        <div class="invalid-feedback">
+          {% for error in multi_form.transdate.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
         </div>
-    </form>
+        {% else %}
+        {{ multi_form.transdate(class="form-control form-control-md") }}
+        {% endif %}
+        <div class="form-group mb-1">
+          {{ multi_form.am_pm.label(class="form-control-label") }}
+          {% if multi_form.am_pm.errors %}
+          {{ multi_form.am_pm(class="form-control form-control-md is-invalid") }}
+          <div class="invalid-feedback">
+            {% for error in multi_form.am_pm.errors %}
+            <span>{{ error }}</span>
+            {% endfor %}
+          </div>
+          {% else %}
+          {{ multi_form.am_pm(class="form-control form-control-md") }}
+          {% endif %}
+        </div>  
+      </div>
+      {% for form in multi_form.counts %}
+      {{ form.csrf_token() }}
+      <div class="form-group mb-1">
+        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
+        
+        {% if form.itemname.errors %}
+        {{ form.itemname(class="form-control-label form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
+        <div class="invalid-feedback">
+          {% for error in form.itemname.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
+        {% endif %}
+      </div>
+      <div class="form-group mb-1">
+        {{ form.casecount.label(class="form-control-label") }}
+        {% if form.casecount.errors %}
+        {{ form.casecount(class="form-control form-control-md is-invalid") }}
+        <div class="invalid-feedback">
+          {% for error in form.casecount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.casecount(class="form-control form-control-md") }}
+        {% endif %}
+      </div>
+      <div class="form-group mb-1">
+        {{ form.eachcount.label(class="form-control-label") }}
+        {% if form.eachcount.errors %}
+        {{ form.eachcount(class="form-control form-control-md is-invalid") }}
+        <div class="invalid-feedback">
+          {% for error in form.eachcount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.eachcount(class="form-control form-control-md") }}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </fieldset>
+    <div class="form-group mb-1">
+      {{ multi_form.submit(class="btn btn-primary") }}
+    </div>
+  </form>
 </div>
 
 <!-- Count Section -->
 <section id="counts" class="p-1 bg-steel">
-{% for group in ordered_items %}
+  {% for group in ordered_items %}
   <div class="content-section">
     <legend class="border-bottom mb-6">{{ group.trans_date.strftime('%A-%m/%d') }} - {{ group.count_time }}</legend>
     {% for item in inv_items %}
-      {% if item.trans_date == group.trans_date and item.count_time == group.count_time %}
-        <div class="media-body">
-          <a class="me-2" href="{{ url_for('counts_blueprint.update_count', count_id=item.id) }}">{{ item.item_name }}</a>
-          <small class="text-muted">{{ item.case_count }} Cases + {{ item.each_count }} Each  =  {{ item.count_total }} Total {{ ordered_count}}</small>
-        </div>
-      {% endif %}
+    {% if item.trans_date == group.trans_date and item.count_time == group.count_time %}
+    <div class="media-body">
+      <a class="me-2" href="{{ url_for('counts_blueprint.update_count', count_id=item.id) }}">{{ item.item_name }}</a>
+      <small class="text-muted">{{ item.case_count }} Cases + {{ item.each_count }} Each  =  {{ item.count_total }} Total {{ ordered_count}}</small>
+    </div>
+    {% endif %}
     {% endfor %}
   </div>
-{% endfor %}
+  {% endfor %}
 </section>
 <div>
-    {{ purchase_item }}
-    {{ sales_item }}
+  {{ purchase_item }}
+  {{ sales_item }}
 </div>
 
 {% for page_num in ordered_items.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-  {% if page_num %}
-    {%if ordered_items.page == page_num %}
-      <a class="btn btn-info mb-4" href="{{ url_for('counts_blueprint.count', page=page_num) }}">{{ page_num }}</a>
-    {% else %}
-      <a class="btn btn-outline-info mb-4" href="{{ url_for('counts_blueprint.count', page=page_num) }}">{{ page_num }}</a>
-    {% endif %}
-  {% else %}
-    ...
-  {% endif %}
+{% if page_num %}
+{%if ordered_items.page == page_num %}
+<a class="btn btn-info mb-4" href="{{ url_for('counts_blueprint.count', page=page_num) }}">{{ page_num }}</a>
+{% else %}
+<a class="btn btn-outline-info mb-4" href="{{ url_for('counts_blueprint.count', page=page_num) }}">{{ page_num }}</a>
+{% endif %}
+{% else %}
+...
+{% endif %}
 {% endfor %}
 
 {% endblock content %}
