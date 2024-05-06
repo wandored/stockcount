@@ -284,6 +284,11 @@ def purchases():
         return redirect(url_for("counts_blueprint.purchases"))
 
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can count them!", "warning")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+    
     multi_form = PurchasesForm(purchases=item_list)
     index = 0
     for form in multi_form.purchases:
@@ -431,6 +436,11 @@ def sales():
 
     # create sales form for input
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can count them!", "warning")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+
     multi_form = SalesForm(sales=item_list)
     index = 0
     for form in multi_form.sales:
