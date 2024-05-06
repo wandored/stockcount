@@ -12,6 +12,8 @@ from stockcount.counts.forms import (
     EnterCountForm,
     EnterPurchasesForm,
     EnterSalesForm,
+    CountForm,
+    PurchasesForm,
     SalesForm,
     NewItemForm,
     StoreForm,
@@ -42,14 +44,11 @@ def count():
         .filter(InvCount.store_id == session["store"])
         .group_by(InvCount.trans_date, InvCount.count_time)
     )
-    ordered_items = count_dates.order_by(
-        InvCount.trans_date.desc(), InvCount.count_time.desc()
-    ).paginate(page=page, per_page=10)
+    ordered_items = count_dates.order_by(InvCount.trans_date.desc(), InvCount.count_time.desc()).paginate(
+        page=page, per_page=10
+    )
 
-    # forms
-    form = EnterCountForm()
     store_form = StoreForm()
-
     if store_form.storeform_submit.data and store_form.validate():
         data = store_form.stores.data
         for x in data:
@@ -60,82 +59,97 @@ def count():
                 flash("You do not have access to that store!", "danger")
         return redirect(url_for("counts_blueprint.count"))
 
-    if form.validate_on_submit():
-        items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    multi_form = CountForm(counts=item_list)
+    index = 0
+    for form in multi_form.counts:
+        form.itemname.data = item_list[index].item_name
+        form.item_id.data = item_list[index].id
+        index += 1
 
-        # Calculate the previous count
-        filter_item = InvCount.query.filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == form.itemname.data.id,
-        )
-        previous_count = filter_item.order_by(InvCount.trans_date.desc()).first()
-        if previous_count is None:
-            total_previous = 0
-        else:
-            total_previous = previous_count.count_total
-
+    del index
+    
+    # on form submission
+    if multi_form.submit.data:
         # Check if count exists for same day and time
-        double_count = InvCount.query.filter_by(
-            store_id=session["store"],
-            item_id=form.itemname.data.id,
-            trans_date=form.transdate.data,
-            count_time=form.am_pm.data,
-        ).first()
-        if double_count is not None:
-            flash(
-                f"{form.itemname.data.item_name} already has a {form.am_pm.data} count on {form.transdate.data}, please enter a different date or time",
-                "warning",
+        #for each count entry, check if it already exists
+        for count_entry in multi_form.counts.data:
+            double_count = InvCount.query.filter_by(
+                item_id=count_entry["item_id"],
+                trans_date=multi_form.transdate.data,
+                count_time=multi_form.am_pm.data,
+            ).first()
+            ic(double_count)
+            if double_count is not None:
+                flash(
+                    f"{count_entry['itemname']} already has a count on {multi_form.transdate.data}, please enter a different date or time",
+                    "warning",
+                )
+                return redirect(url_for("counts_blueprint.count"))
+        
+        # get previous count
+        for count_entry in multi_form.counts.data:
+            items_object = InvItems.query.filter_by(id=count_entry["item_id"]).first()
+            filter_item = InvCount.query.filter(
+                InvCount.store_id == session["store"],
+                InvCount.item_id == multi_form.counts.data[0]["item_id"],
             )
+            previous_count = filter_item.order_by(InvCount.trans_date.desc()).first()
+            if previous_count is None:
+                total_previous = 0
+            else:
+                total_previous = previous_count.count_total
+                
+            # Calculate total purchases
+            purchase_item = InvPurchases.query.filter_by(
+                store_id=session["store"],
+                item_id=count_entry["item_id"],
+                trans_date=multi_form.transdate.data,
+            ).first()
+            if purchase_item is None:
+                total_purchase = 0
+            else:
+                total_purchase = purchase_item.purchase_total
+                
+            # Calculate total sales
+            sales_item = InvSales.query.filter_by(
+                store_id=session["store"],
+                item_id=count_entry["item_id"],
+                trans_date=multi_form.transdate.data,
+            ).first()
+            if sales_item is None:
+                total_sales = 0
+            else:
+                total_sales = sales_item.sales_total
+            
+            for count_entry in multi_form.counts.data:
+                items_object = InvItems.query.filter_by(id=count_entry["item_id"]).first()
+                inventory = InvCount(
+                    trans_date=multi_form.transdate.data,
+                    count_time=multi_form.am_pm.data,
+                    item_name=count_entry["itemname"],
+                    case_count=count_entry["casecount"],
+                    each_count=count_entry["eachcount"],
+                    count_total=(
+                        items_object.case_pack * count_entry["casecount"] + count_entry["eachcount"]
+                    ),
+                    previous_total=total_previous,
+                    theory=(total_previous + total_purchase - total_sales),
+                    daily_variance=(
+                        (items_object.case_pack * count_entry["casecount"] + count_entry["eachcount"])
+                        - (total_previous + total_purchase - total_sales)
+                    ),
+                    item_id=count_entry["item_id"],
+                    store_id=session["store"],
+                )
+                db.session.add(inventory)
+            db.session.commit()
+            # flash(
+            #     f"Count submitted for {count_entry['itemname ']} on {multi_form.transdate.data}!",
+            #     "success",
+            # )
             return redirect(url_for("counts_blueprint.count"))
-
-        # Calculate total purchases
-        purchase_item = InvPurchases.query.filter_by(
-            store_id=session["store"],
-            item_id=form.itemname.data.id,
-            trans_date=form.transdate.data,
-        ).first()
-        if purchase_item is None:
-            total_purchase = 0
-        else:
-            total_purchase = purchase_item.purchase_total
-
-        # Calculate total sales
-        sales_item = InvSales.query.filter_by(
-            store_id=session["store"],
-            item_id=form.itemname.data.id,
-            trans_date=form.transdate.data,
-        ).first()
-        if sales_item is None:
-            total_sales = 0
-        else:
-            total_sales = sales_item.sales_total
-
-        inventory = InvCount(
-            trans_date=form.transdate.data,
-            count_time=form.am_pm.data,
-            item_name=form.itemname.data.item_name,
-            case_count=form.casecount.data,
-            each_count=form.eachcount.data,
-            count_total=(
-                items_object.case_pack * form.casecount.data + form.eachcount.data
-            ),
-            previous_total=total_previous,
-            theory=(total_previous + total_purchase - total_sales),
-            daily_variance=(
-                (items_object.case_pack * form.casecount.data + form.eachcount.data)
-                - (total_previous + total_purchase - total_sales)
-            ),
-            item_id=form.itemname.data.id,
-            store_id=session["store"],
-        )
-        db.session.add(inventory)
-        db.session.commit()
-        flash(
-            f"Count submitted for {form.itemname.data.item_name} on {form.transdate.data}!",
-            "success",
-        )
-        return redirect(url_for("counts_blueprint.count"))
-
+        
     return render_template(
         "counts/count.html",
         title="Enter Count",
@@ -243,19 +257,17 @@ def delete_count(count_id):
 def purchases():
     """Enter new purchases"""
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    purchase_items = InvPurchases.query.filter(
-        InvPurchases.store_id == session["store"]
-    ).all()
-    inv_items = InvItems.query.filter(InvPurchases.store_id == session["store"]).all()
+    
     page = request.args.get("page", 1, type=int)
+    purchase_items = InvPurchases.query.filter(InvPurchases.store_id == session["store"]).all()
     purchase_dates = (
         db.session.query(InvPurchases.trans_date)
         .filter_by(store_id=session["store"])
         .group_by(InvPurchases.trans_date)
     )
-    ordered_purchases = purchase_dates.order_by(
-        InvPurchases.trans_date.desc()
-    ).paginate(page=page, per_page=10)
+    ordered_purchases = purchase_dates.order_by(InvPurchases.trans_date.desc()).paginate(
+        page=page, per_page=10
+    )
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -265,39 +277,56 @@ def purchases():
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.purchases"))
 
-    form = EnterPurchasesForm()
-    if form.validate_on_submit():
-        items_object = InvItems.query.filter_by(id=form.itemname.data.id).first()
-
-        # Check if purchase exists for same day and time
-        double_purchase = InvPurchases.query.filter_by(
-            item_id=form.itemname.data.id, trans_date=form.transdate.data
-        ).first()
-        if double_purchase is not None:
-            flash(
-                f"{form.itemname.data.item_name} already has a purchase on {form.transdate.data}, please enter a different date or edit the existing purchase!",
-                "warning",
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    multi_form = PurchasesForm(purchases=item_list)
+    index = 0
+    for form in multi_form.purchases:
+        form.itemname.data = item_list[index].item_name
+        form.item_id.data = item_list[index].id
+        index += 1
+        
+    del index
+    
+    if multi_form.validate_on_submit():
+        # Check if sales exists for same day and time
+        #for each sales entry, check if it already exists
+        for purchase_entry in multi_form.purchases.data:
+            double_purchase = InvPurchases.query.filter_by(
+                item_id=purchase_entry["item_id"],
+                trans_date=multi_form.transdate.data,
+            ).first()
+            ic(double_purchase)
+            if double_purchase is not None:
+                flash(
+                    f"{purchase_entry['itemname']} already has a purchase on {multi_form.transdate.data}, please enter a different date or edit the existing purchase!",
+                    "warning",
+                )
+                return redirect(url_for("counts_blueprint.purchases"))
+        
+        for purchase_entry in multi_form.purchases.data:
+            items_object = InvItems.query.filter_by(id=purchase_entry["item_id"]).first()
+            ic(items_object.case_pack)
+            purchase_item = InvPurchases(
+                trans_date=multi_form.transdate.data,
+                item_name=purchase_entry["itemname"],
+                case_count=purchase_entry["casecount"],
+                each_count=purchase_entry["eachcount"],
+                purchase_total=(
+                    items_object.case_pack * purchase_entry["casecount"] + purchase_entry["eachcount"]
+                ),
+                item_id=purchase_entry["item_id"],
+                store_id=session["store"],
             )
-            return redirect(url_for("counts_blueprint.purchases"))
-
-        purchase = InvPurchases(
-            trans_date=form.transdate.data,
-            item_name=form.itemname.data.item_name,
-            case_count=form.casecount.data,
-            each_count=form.eachcount.data,
-            purchase_total=(
-                items_object.case_pack * form.casecount.data + form.eachcount.data
-            ),
-            item_id=form.itemname.data.id,
-            store_id=session["store"],
-        )
-        db.session.add(purchase)
+            
+            db.session.add(purchase_item)
         db.session.commit()
-        flash(
-            f"Purchases submitted for {form.itemname.data.item_name} on {form.transdate.data}!",
-            "success",
-        )
-        calculate_totals(items_object.id)
+        # flash(
+        #         f"Sales of {sales_form.eachcount.data + sales_form.waste.data} {sales_form.itemname.data.item_name} submitted on {multi_form.transdate.data}!",
+        #         "success",
+        #         )
+        items_object = InvItems.query.filter_by(id=purchase_entry['item_id']).all()
+        for item in items_object:
+            calculate_totals(item.id)
         return redirect(url_for("counts_blueprint.purchases"))
     return render_template(
         "counts/purchases.html",
@@ -329,6 +358,7 @@ def update_purchases(purchase_id):
     form = UpdatePurchasesForm()
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.item_id.data).first()
+        ic(items_object)
         item.trans_date = form.transdate.data
         item.item_name = form.itemname.data
         item.case_count = form.casecount.data
@@ -396,23 +426,30 @@ def sales():
     # create sales form for input
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     multi_form = SalesForm(sales=item_list)
+    index = 0
     for form in multi_form.sales:
-        for item in item_list:
-            form.itemname.choices = form.itemname.choices + [(item[1])]
-    for item in multi_form.sales.data:
-        for key, value in item.items():
-            ic(key, value)
+            form.itemname.data = item_list[index].item_name
+            form.item_id.data = item_list[index].id
+            index += 1
+            
+    del index
 
-    if multi_form.submit.data:
-        ic(multi_form.sales.data)
-        print("submitted")
-        if multi_form.validate():
-            print("validated")
-            ic(multi_form.transdate.data)
-        else:
-            print("not validated")
-            ic(multi_form.errors)
-
+    if multi_form.validate_on_submit():
+        # Check if sales exists for same day and time
+        #for each sales entry, check if it already exists
+        for sales_entry in multi_form.sales.data:
+            double_sales = InvSales.query.filter_by(
+                item_id=sales_entry["item_id"],
+                trans_date=multi_form.transdate.data,
+            ).first()
+            ic(double_sales)
+            if double_sales is not None:
+                flash(
+                    f"{sales_entry['itemname']} already has a sales on {multi_form.transdate.data}, please enter a different date or edit the existing sales!",
+                    "warning",
+                )
+                return redirect(url_for("counts_blueprint.sales"))
+        
         for sales_entry in multi_form.sales.data:
             ic(sales_entry.items())
             sale_item = InvSales(
@@ -424,15 +461,16 @@ def sales():
                 item_id=sales_entry["item_id"],
                 store_id=session["store"],
             )
-            ic(sale_item.item_id, sale_item.item_name, sale_item.sales_total)
-            # db.session.add(sale_item)
-        # db.session.commit()
+            # ic(sale_item.item_id, sale_item.item_name, sale_item.sales_total)
+            db.session.add(sale_item)
+        db.session.commit()
         # flash(
         #         f"Sales of {sales_form.eachcount.data + sales_form.waste.data} {sales_form.itemname.data.item_name} submitted on {multi_form.transdate.data}!",
         #         "success",
         #         )
-        # unit = InvItems.query.filter_by(id=sales_entry['itemname'].id).first()
-        # calculate_totals(unit.id)
+        unit = InvItems.query.filter_by(id=sales_entry['item_id']).all()
+        for item in unit:
+            calculate_totals(item.id)
         return redirect(url_for("counts_blueprint.sales"))
 
     ic(multi_form.errors)

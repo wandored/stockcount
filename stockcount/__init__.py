@@ -14,6 +14,7 @@ def register_extensions(app):
     db.init_app(app)
     mail.init_app(app)
     security.init_app(app, user_datastore)
+    csrf = CSRFProtect(app)
 
 
 def register_blueprints(app):

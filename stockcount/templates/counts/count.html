@@ -2,77 +2,81 @@
 {% block content %}
 <div class="content-section">
   <form method="POST" action="">
-    {{ form.hidden_tag() }}
+    {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
       <legend class="border-bottom mb-2">Enter Count</legend>
       <div class="form-group mb-1">
-        {{ form.transdate.label(class="form=control-label") }}
-        {% if form.transdate.errors %}
-        {{ form.transdate(class="form=control form-control-md is-invalid") }}
+        {{ multi_form.transdate.label(class="form-control-label") }}
+        {% if multi_form.transdate.errors %}
+        {{ multi_form.transdate(class="form-control form-control-md is-invalid") }}
         <div class="invalid-feedback">
-          {% for error in form.transdate.errors %}
+          {% for error in multi_form.transdate.errors %}
           <span>{{ error }}</span>
           {% endfor %}
         </div>
         {% else %}
-        {{ form.transdate(class="form=control form-control-md") }}
+        {{ multi_form.transdate(class="form-control form-control-md") }}
         {% endif %}
+        <div class="form-group mb-1">
+          {{ multi_form.am_pm.label(class="form-control-label") }}
+          {% if multi_form.am_pm.errors %}
+          {{ multi_form.am_pm(class="form-control form-control-md is-invalid") }}
+          <div class="invalid-feedback">
+            {% for error in multi_form.am_pm.errors %}
+            <span>{{ error }}</span>
+            {% endfor %}
+          </div>
+          {% else %}
+          {{ multi_form.am_pm(class="form-control form-control-md") }}
+          {% endif %}
+        </div>  
       </div>
+      {% for form in multi_form.counts %}
+      {{ form.csrf_token() }}
       <div class="form-group mb-1">
-        {{ form.am_pm.label(class="form=control-label") }}
-        {% if form.am_pm.errors %}
-        {{ form.am_pm(class="form=control form-control-md is-invalid") }}
-        <div class="invalid-feedback">
-          {% for error in form.am_pm.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
-        </div>
-        {% else %}
-        {{ form.am_pm(class="form=control form-control-md") }}
-        {% endif %}
-      </div>
-      <div class="form-group mb-1">
-        {{ form.itemname.label(class="form=control-label") }}
+        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
+        
         {% if form.itemname.errors %}
-        {{ form.itemname(class="form=control form-control-md is-invalid") }}
+        {{ form.itemname(class="form-control-label form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
         <div class="invalid-feedback">
           {% for error in form.itemname.errors %}
           <span>{{ error }}</span>
           {% endfor %}
         </div>
         {% else %}
-        {{ form.itemname(class="form=control form-control-md") }}
+        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
         {% endif %}
       </div>
       <div class="form-group mb-1">
-        {{ form.casecount.label(class="form=control-label") }}
+        {{ form.casecount.label(class="form-control-label") }}
         {% if form.casecount.errors %}
-        {{ form.casecount(class="form=control form-control-md is-invalid") }}
+        {{ form.casecount(class="form-control form-control-md is-invalid") }}
         <div class="invalid-feedback">
           {% for error in form.casecount.errors %}
           <span>{{ error }}</span>
           {% endfor %}
         </div>
         {% else %}
-        {{ form.casecount(class="form=control form-control-md") }}
+        {{ form.casecount(class="form-control form-control-md") }}
         {% endif %}
       </div>
       <div class="form-group mb-1">
-        {{ form.eachcount.label(class="form=control-label") }}
+        {{ form.eachcount.label(class="form-control-label") }}
         {% if form.eachcount.errors %}
-        {{ form.eachcount(class="form=control form-control-md is-invalid") }}
+        {{ form.eachcount(class="form-control form-control-md is-invalid") }}
         <div class="invalid-feedback">
           {% for error in form.eachcount.errors %}
           <span>{{ error }}</span>
           {% endfor %}
         </div>
         {% else %}
-        {{ form.eachcount(class="form=control form-control-md") }}
+        {{ form.eachcount(class="form-control form-control-md") }}
         {% endif %}
       </div>
+      {% endfor %}
     </fieldset>
-    <div class="form-group">
-      {{ form.submit(class="btn btn-primary") }}
+    <div class="form-group mb-1">
+      {{ multi_form.submit(class="btn btn-primary") }}
     </div>
   </form>
 </div>

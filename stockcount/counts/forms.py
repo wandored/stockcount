@@ -68,26 +68,27 @@ class NewItemForm(FlaskForm):
 
 
 class UpdateItemForm(FlaskForm):
-    itemname = StringField("Item Name: ", validators=[DataRequired()])
+    itemname = StringField("", validators=[DataRequired()])
     casepack = IntegerField("# per Case: ", validators=[DataRequired()])
     submit = SubmitField("Submit")
 
 
 class EnterCountForm(FlaskForm):
-    transdate = DateField("Count Date: ", format="%Y-%m-%d", default=datetime.today)
-    am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
-    itemname = QuerySelectField(
-        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="item_name"
-    )
+    itemname = StringField("", validators=[DataRequired()])
+    item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Case Count: ", default=0)
     eachcount = IntegerField("Each Count: ", default=0)
-    submit = SubmitField("Submit!")
 
+class CountForm(FlaskForm):
+    transdate = DateField("Count Date: ", format="%Y-%m-%d", default=datetime.today)
+    am_pm = SelectField("Count Type: ", choices=["PM", "AM"], default="PM")
+    counts = FieldList(FormField(EnterCountForm), min_entries=1)
+    submit = SubmitField("Submit!")
 
 class UpdateCountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d")
     am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
-    itemname = StringField("Item Name: ", validators=[DataRequired()])
+    itemname = StringField("", validators=[DataRequired()])
     item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Case Count: ")
     eachcount = IntegerField("Each Count: ")
@@ -95,14 +96,15 @@ class UpdateCountForm(FlaskForm):
 
 
 class EnterPurchasesForm(FlaskForm):
-    transdate = DateField("Purchase Date: ", format="%Y-%m-%d", default=datetime.today)
-    itemname = QuerySelectField(
-        "Item Name: ", query_factory=item_query, allow_blank=True, get_label="item_name"
-    )
+    itemname = StringField("", validators=[DataRequired()])
+    item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Cases Purchased: ", default=0)
     eachcount = IntegerField("Each Purchased: ", default=0)
-    submit = SubmitField("Submit!")
 
+class PurchasesForm(FlaskForm):
+    transdate = DateField("Purchase Date: ", format="%Y-%m-%d", default=datetime.today)
+    purchases = FieldList(FormField(EnterPurchasesForm), min_entries=1)
+    submit = SubmitField("Submit!")
 
 class UpdatePurchasesForm(FlaskForm):
     transdate = DateField("Purchase Date: ", format="%Y-%m-%d")
@@ -114,7 +116,7 @@ class UpdatePurchasesForm(FlaskForm):
 
 
 class EnterSalesForm(FlaskForm):
-    itemname = SelectField("Item Name: ", choices=[], validators=[DataRequired()])
+    itemname = StringField("", validators=[DataRequired()])
     item_id = HiddenField(validators=[DataRequired()])
     eachcount = IntegerField("Each Sales: ", default=0)
     waste = IntegerField("Waste", default=0)
@@ -128,7 +130,7 @@ class SalesForm(FlaskForm):
 
 class UpdateSalesForm(FlaskForm):
     transdate = DateField("Sales Date: ", format="%Y-%m-%d")
-    itemname = StringField("Item Name: ", validators=[DataRequired()])
+    itemname = StringField("", validators=[DataRequired()])
     eachcount = IntegerField("Each Sales: ")
     waste = IntegerField("Waste: ")
     submit = SubmitField("Submit!")

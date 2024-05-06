@@ -2,7 +2,6 @@
 {% block content %}
 <div class="content-section">
   <form method="POST" action="">
-    {{ multi_form.csrf_token() }}
     {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
       <legend class="border-bottom mb-2">Enter Sales</legend>
@@ -20,17 +19,18 @@
         {% endif %}
       </div>
       {% for form in multi_form.sales %}
+      {{ form.csrf_token() }}
       <div class="form-group mb-1">
-        {{ form.itemname.label(class="form-control-label", value=form.itemname.data) }}
+        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
         {% if form.itemname.errors %}
-        {{ form.itemname(class="form-control form-control-md is-invalid", value=form.itemname.data) }}
+        {{ form.itemname(class="form-control form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
         <div class="invalid-feedback">
           {% for error in form.itemname.errors %}
           <span>{{ error }}</span>
           {% endfor %}
         </div>
         {% else %}
-        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data[1]) }}
+        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
         {% endif %}
       </div>
       <div class="style=width: 25%">
