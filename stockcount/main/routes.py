@@ -1,5 +1,5 @@
 """ main/routes.py is the main flask routes page """
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from flask import flash, redirect, render_template, session, url_for
 from flask_security import current_user, login_required
@@ -26,22 +26,90 @@ def report():
     if session.get("store") is None or session.get("store") not in session["access"]:
         session["store"] = session["access"][0]
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
-
-    ordered_counts = (
-        InvCount.query.filter_by(store_id=session["store"])
-        .order_by(
-            InvCount.trans_date.desc(),
-            InvCount.count_time.desc(),
-            InvCount.daily_variance,
-        )
-        .all()
-    )
+    
     date_time = (
         InvCount.query.filter_by(store_id=session["store"])
         .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
         .first()
-    )
-
+    )    
+    
+    date = date_time.trans_date.strftime("%Y-%m-%d")    
+        
+    # get all counts for the store on date
+    ordered_counts = (
+        db.session.query(InvCount, InvItems).filter(
+            InvCount.store_id == session["store"],
+            InvCount.trans_date == date,
+            InvCount.item_id == InvItems.id,
+        )
+    ).all()
+    
+    # make ordered_counts a dict
+    count_dict = []
+    for row in ordered_counts:
+        row_dict = row._asdict()
+        row_dict['item_name'] = row.InvItems.item_name
+        row_dict['item_id'] = row.InvItems.id
+        row_dict['count_total'] = row.InvCount.count_total
+        row_dict['theory'] = 0
+        row_dict['daily_variance'] = 0
+        
+        # get the previous total for the day
+        dateObj = datetime.strptime(date, "%Y-%m-%d")
+        yesterday = dateObj - timedelta(days=1)
+        previous_total = (
+            db.session.query(InvCount.count_total)
+            .filter(
+                InvCount.trans_date == yesterday,
+                InvCount.store_id == session["store"],
+                InvCount.item_id == row.InvItems.id,
+            )
+            .first()
+        )
+        if previous_total[0] is not None:
+            row_dict['previous_total'] = previous_total[0]
+        else:
+            row_dict['previous_total'] = 0
+        
+        # get the purchase count for the day
+        purchase_count = (
+            db.session.query(func.sum(InvPurchases.purchase_total).label("purchase_count"))
+            .filter(
+                InvPurchases.store_id == session["store"],
+                InvPurchases.trans_date == date,
+                InvPurchases.item_id == row.InvItems.id,
+            )
+            .first()
+        )
+        if purchase_count[0] is not None:
+            row_dict['purchase_count'] = purchase_count[0]
+        else:
+            row_dict['purchase_count'] = 0
+            
+        # get the sales count for the day
+        sales_count = (
+            db.session.query(func.sum(InvSales.each_count).label("sales_count"))
+            .filter(
+                InvSales.store_id == session["store"],
+                InvSales.trans_date == date,
+                InvSales.item_id == row.InvItems.id,
+            )
+            .first()
+        )
+        if sales_count[0] is not None:
+            row_dict['sales_count'] = sales_count[0]
+        else:
+            row_dict['sales_count'] = 0
+        
+        # calculate theory and variance
+        row_dict['theory'] = (row_dict['previous_total'] or 0) + (row_dict['purchase_count'] or 0) - (row_dict['sales_count'] or 0)
+        row_dict['daily_variance'] = (row_dict['count_total'] or 0) - (row_dict['theory'] or 0)
+        
+        count_dict.append(row_dict)
+    
+    # sort count_dict by item_name
+    count_dict = sorted(count_dict, key=lambda x: x['item_name'])
+                        
     if not ordered_counts:
         flash("You must first enter Counts to see Reports!", "warning")
         return redirect(url_for("counts_blueprint.count"))
@@ -178,13 +246,10 @@ def report_details(product):
     result = (
         db.session.query(
             InvCount.trans_date,
-            InvCount.previous_total,
             func.sum(InvPurchases.purchase_total).label("purchase_count"),
             func.sum(InvSales.each_count).label("sales_count"),
             func.sum(InvSales.waste).label("sales_waste"),
-            InvCount.theory,
             InvCount.count_total,
-            InvCount.daily_variance,
         )
         .select_from(InvCount)
         .outerjoin(
@@ -205,10 +270,7 @@ def report_details(product):
         )
         .group_by(
             InvCount.trans_date,
-            InvCount.previous_total,
             InvCount.count_total,
-            InvCount.theory,
-            InvCount.daily_variance,
         )
         .order_by(InvCount.trans_date.desc())
         .filter(
@@ -218,7 +280,35 @@ def report_details(product):
             InvCount.trans_date >= weekly,
         )
     )
-
+    
+    # convert result to dict
+    details = []
+    for row in result:
+        row_dict = row._asdict()
+        row_dict['previous_total'] = 0
+        row_dict['theory'] = 0
+        row_dict['daily_variance'] = 0
+        details.append(row_dict)
+    
+    # Get previous total and add to details
+    yesterday = end_date - timedelta(days=1)
+    for i in range(len(details)):
+        seven_days_ago_total = (
+            db.session.query(InvCount.count_total)
+            .filter(
+                InvCount.trans_date == yesterday,
+                InvCount.store_id == session["store"],
+                InvCount.item_id == product
+            ).first())
+        if seven_days_ago_total is not None:        
+            details[i]['previous_total'] = seven_days_ago_total[0]
+            
+        # calculate theory and variance
+        details[i]['theory'] = (details[i]['previous_total'] or 0) + (details[i]['purchase_count'] or 0) - (details[i]['sales_count'] or 0)
+        details[i]['daily_variance'] = (details[i]['count_total'] or 0) - (details[i]['theory'] or 0)
+        
+        yesterday -= timedelta(days=1)
+        
     item_name = db.session.query(InvItems).filter(InvItems.id == product).first()
 
     return render_template(

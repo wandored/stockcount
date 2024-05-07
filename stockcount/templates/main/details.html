@@ -21,7 +21,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for r in result %}
+              {% for r in details %}
                   <tr>
                     <td>{{ r.trans_date.strftime('%A-%m/%d') }}</td>
                     <td>{{ r.previous_total }}</td>
@@ -41,8 +41,8 @@
                       <td> - 0</td>
                     {% endif %}
                     <td> = {{ r.theory }}</td>
-                    <td> - {{ r.count_total }}</td>
-                    <td> = {{ r.daily_variance }}</td>
+                    <td> {{ r.count_total }}</td>
+                    <td> {{ r.daily_variance }}</td>
                   </tr>
               {% endfor %}
             </tbody>
