@@ -130,6 +130,7 @@ def count():
             
             for count_entry in multi_form.counts.data:
                 items_object = InvItems.query.filter_by(id=count_entry["item_id"]).first()
+                
                 inventory = InvCount(
                     trans_date=multi_form.transdate.data,
                     count_time=multi_form.am_pm.data,
