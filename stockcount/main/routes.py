@@ -26,94 +26,83 @@ def report():
     if session.get("store") is None or session.get("store") not in session["access"]:
         session["store"] = session["access"][0]
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
+        
+    # Get list of restaurant's items
+    inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
     
+    # Get the most recent day that was counted
     date_time = (
         InvCount.query.filter_by(store_id=session["store"])
         .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
         .first()
-    )    
+    )
     
-    date = date_time.trans_date.strftime("%Y-%m-%d")    
-        
-    # get all counts for the store on date
-    ordered_counts = (
-        db.session.query(InvCount, InvItems).filter(
-            InvCount.store_id == session["store"],
-            InvCount.trans_date == date,
-            InvCount.item_id == InvItems.id,
-        )
-    ).all()
-    
-    # make ordered_counts a dict
-    count_dict = []
-    for row in ordered_counts:
-        row_dict = row._asdict()
-        row_dict['item_name'] = row.InvItems.item_name
-        row_dict['item_id'] = row.InvItems.id
-        row_dict['count_total'] = row.InvCount.count_total
-        row_dict['theory'] = 0
-        row_dict['daily_variance'] = 0
-        
-        # get the previous total for the day
-        dateObj = datetime.strptime(date, "%Y-%m-%d")
-        yesterday = dateObj - timedelta(days=1)
-        previous_total = (
-            db.session.query(InvCount.count_total)
-            .filter(
-                InvCount.trans_date == yesterday,
-                InvCount.store_id == session["store"],
-                InvCount.item_id == row.InvItems.id,
-            )
-            .first()
-        )
-        if previous_total[0] is not None:
-            row_dict['previous_total'] = previous_total[0]
-        else:
-            row_dict['previous_total'] = 0
-        
-        # get the purchase count for the day
-        purchase_count = (
-            db.session.query(func.sum(InvPurchases.purchase_total).label("purchase_count"))
-            .filter(
-                InvPurchases.store_id == session["store"],
-                InvPurchases.trans_date == date,
-                InvPurchases.item_id == row.InvItems.id,
-            )
-            .first()
-        )
-        if purchase_count[0] is not None:
-            row_dict['purchase_count'] = purchase_count[0]
-        else:
-            row_dict['purchase_count'] = 0
-            
-        # get the sales count for the day
-        sales_count = (
-            db.session.query(func.sum(InvSales.each_count).label("sales_count"))
-            .filter(
-                InvSales.store_id == session["store"],
-                InvSales.trans_date == date,
-                InvSales.item_id == row.InvItems.id,
-            )
-            .first()
-        )
-        if sales_count[0] is not None:
-            row_dict['sales_count'] = sales_count[0]
-        else:
-            row_dict['sales_count'] = 0
-        
-        # calculate theory and variance
-        row_dict['theory'] = (row_dict['previous_total'] or 0) + (row_dict['purchase_count'] or 0) - (row_dict['sales_count'] or 0)
-        row_dict['daily_variance'] = (row_dict['count_total'] or 0) - (row_dict['theory'] or 0)
-        
-        count_dict.append(row_dict)
-    
-    # sort count_dict by item_name
-    count_dict = sorted(count_dict, key=lambda x: x['item_name'])
-                        
-    if not ordered_counts:
+    if date_time is None:
         flash("You must first enter Counts to see Reports!", "warning")
         return redirect(url_for("counts_blueprint.count"))
+    
+    # convert the date_time to a date
+    today = date_time.trans_date.strftime("%Y-%m-%d")
+    today = datetime.strptime(today, "%Y-%m-%d")
+    yesterday = today - timedelta(days=1)    
+        
+    ordered_counts = []
+    for item in inv_items:
+        # Query for today's count, purchases, sales, and waste
+        query = db.session.query(
+            InvCount.count_total.label("today_count"),
+            InvPurchases.purchase_total.label("today_purchase"),
+            InvSales.each_count.label("today_sales_total"),
+            InvSales.waste.label("today_sales_waste"),
+        ).outerjoin(
+            InvPurchases,
+            and_(
+                InvPurchases.store_id == InvCount.store_id,
+                InvPurchases.item_id == InvCount.item_id,
+                InvPurchases.trans_date == InvCount.trans_date
+            )
+        ).outerjoin(
+            InvSales,
+            and_(
+                InvSales.store_id == InvCount.store_id,
+                InvSales.item_id == InvCount.item_id,
+                InvSales.trans_date == InvCount.trans_date
+            )
+        ).filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_id == item.id,
+            InvCount.trans_date == today,
+        ).first()
+                
+        # Query for yesterday's count
+        yesterday_query = db.session.query(
+            InvCount.count_total.label("yesterday_count"),
+        ).filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_id == item.id,
+            InvCount.trans_date == yesterday,
+        ).first()
+        
+        # ic(query, yesterday_query)
 
+        # Get values needed for variance calculation & display 
+        item.count_total = query.today_count if query.today_count is not None else 0
+        item.previous_count = yesterday_query.yesterday_count if yesterday_query.yesterday_count is not None else 0
+        item.purchase_count = query.today_purchase if query.today_purchase is not None else 0
+        item.sales_count = query.today_sales_total if query.today_sales_total is not None else 0
+        item.sales_waste = query.today_sales_waste if query.today_sales_waste is not None else 0
+
+        # calculate the theory and variance
+        item.theory = item.previous_count + item.purchase_count - item.sales_count - item.sales_waste        
+        item.daily_variance = item.count_total - item.theory
+
+        # list of needed data
+        list_item = {"item_id": item.id, "item_name": item.item_name, "daily_variance": item.daily_variance}
+        ordered_counts.append(list_item)
+        
+    # sort by name
+    ordered_counts = sorted(ordered_counts, key=lambda x: x["item_name"])
+                            
     return render_template(
         "main/report.html",
         title="Variance-Daily",
@@ -304,7 +293,7 @@ def report_details(product):
             details[i]['previous_total'] = seven_days_ago_total[0]
             
         # calculate theory and variance
-        details[i]['theory'] = (details[i]['previous_total'] or 0) + (details[i]['purchase_count'] or 0) - (details[i]['sales_count'] or 0)
+        details[i]['theory'] = (details[i]['previous_total'] or 0) + (details[i]['purchase_count'] or 0) - (details[i]['sales_count'] or 0) - (details[i]['sales_waste'] or 0)
         details[i]['daily_variance'] = (details[i]['count_total'] or 0) - (details[i]['theory'] or 0)
         
         yesterday -= timedelta(days=1)
