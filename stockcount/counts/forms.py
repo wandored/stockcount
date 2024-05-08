@@ -19,6 +19,7 @@ from collections import namedtuple
 
 from stockcount.models import InvItems, Restaurants, Item
 
+from sqlalchemy import or_, and_
 
 def store_query():
     return (
@@ -29,8 +30,16 @@ def store_query():
 
 
 def stockcount_query():
-    # return InvCount items that begin with "BEEF"
-    return Item.query.filter(Item.name.like("BEEF%")).order_by(Item.name).all()
+    # Return InvCount items that begin with "BEEF" or contain "PORK Chop"
+    return Item.query.filter(
+        or_(
+            Item.name.like("BEEF%"),
+            and_(
+                Item.name.like("PORK%"),
+                Item.name.like("%Chop %")  # Added wildcard for "Chop" match
+            )
+        )
+    ).order_by(Item.name).all()
 
 
 def item_query():

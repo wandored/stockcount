@@ -130,6 +130,7 @@ def count():
             
             for count_entry in multi_form.counts.data:
                 items_object = InvItems.query.filter_by(id=count_entry["item_id"]).first()
+                
                 inventory = InvCount(
                     trans_date=multi_form.transdate.data,
                     count_time=multi_form.am_pm.data,
@@ -637,8 +638,12 @@ def delete_item(item_id):
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
     item = InvItems.query.get_or_404(item_id)
-    counts = InvCount.query.filter_by(item_id=item.id).first()
+    counts = InvCount.query.filter_by(item_id=item.id).all()
+    purchases = InvPurchases.query.filter_by(item_id=item.id).all()
+    sales = InvSales.query.filter_by(item_id=item.id).all()
     store_form = StoreForm()
+    
+    ic(item.id, session["store"], counts)
 
     if store_form.storeform_submit.data and store_form.validate():
         data = store_form.stores.data
@@ -647,11 +652,18 @@ def delete_item(item_id):
         return redirect(url_for("counts_blueprint.new_item"))
 
     if counts is not None:
-        flash(
-            f"you must delete {item.item_name} from all counts before deleting",
-            "warning",
-        )
-        return redirect(url_for("counts_blueprint.new_item"))
+        for count in counts:
+            db.session.delete(count)
+    
+    if purchases is not None:
+        for purchase in purchases:
+            db.session.delete(purchase)
+            
+    if sales is not None:
+        for sale in sales:
+            db.session.delete(sale)
+            
+        db.session.commit()
 
     db.session.delete(item)
     db.session.commit()
