@@ -10,11 +10,7 @@ from stockcount import db
 from stockcount.main import blueprint
 from stockcount.main.utils import set_user_access
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
-
-
-@blueprint.route("/home/")
-def home():
-    return render_template("main_blueprint/home.html", title="Home")
+from stockcount.counts.forms import StoreForm
 
 
 @blueprint.route("/")
@@ -36,6 +32,18 @@ def report():
         .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
         .first()
     )
+
+    store_form = StoreForm()
+    if store_form.storeform_submit.data and store_form.validate():
+        data = store_form.stores.data
+        for x in data:
+            if x.id in session["access"]:
+                session["store"] = x.id
+                flash(f"Store changed to {x.name}", "success")
+            else:
+                flash("You do not have access to that store!", "danger")
+        return redirect(url_for("main_blueprint.report"))
+
     
     if date_time is None:
         flash("You must first enter Counts to see Reports!", "warning")
@@ -83,7 +91,6 @@ def report():
             InvCount.trans_date == yesterday,
         ).first()
         
-        # ic(query, yesterday_query)
 
         # Get values needed for variance calculation & display 
         item.count_total = query.today_count if query.today_count is not None else 0
@@ -114,6 +121,18 @@ def report():
 @login_required
 def report_details(product):
     """display item details"""
+
+    store_form = StoreForm()
+    if store_form.storeform_submit.data and store_form.validate():
+        data = store_form.stores.data
+        for x in data:
+            if x.id in session["access"]:
+                session["store"] = x.id
+                flash(f"Store changed to {x.name}", "success")
+            else:
+                flash("You do not have access to that store!", "danger")
+        return redirect(url_for("main_blueprint.report"))
+
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     # restrict results to the last 7 & 28 days
     last_count = (

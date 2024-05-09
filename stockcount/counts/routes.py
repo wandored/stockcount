@@ -9,9 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from stockcount import db
 from stockcount.counts import blueprint
 from stockcount.counts.forms import (
-    EnterCountForm,
-    EnterPurchasesForm,
-    EnterSalesForm,
     CountForm,
     PurchasesForm,
     SalesForm,
@@ -23,7 +20,6 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.main.utils import set_user_access
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 
 from icecream import ic
@@ -370,7 +366,6 @@ def update_purchases(purchase_id):
     form = UpdatePurchasesForm()
     if form.validate_on_submit():
         items_object = InvItems.query.filter_by(id=form.item_id.data).first()
-        ic(items_object)
         item.trans_date = form.transdate.data
         item.item_name = form.itemname.data
         item.case_count = form.casecount.data
@@ -490,7 +485,6 @@ def sales():
             calculate_totals(item.id)
         return redirect(url_for("counts_blueprint.sales"))
 
-    ic(multi_form.errors)
     return render_template(
         "counts/sales.html",
         title="Sales",
