@@ -15,39 +15,8 @@ from wtforms import (
 from wtforms.fields import DateField
 from wtforms.validators import DataRequired
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
-from collections import namedtuple
 
-from stockcount.models import InvItems, Restaurants, Item
-
-from sqlalchemy import or_, and_
-
-def store_query():
-    return (
-        Restaurants.query.filter(Restaurants.id.in_(session["access"]))
-        .order_by(Restaurants.name)
-        .all()
-    )
-
-
-def stockcount_query():
-    # Return InvCount items that begin with "BEEF" or contain "PORK Chop"
-    return Item.query.filter(
-        or_(
-            Item.name.like("BEEF%"),
-            and_(
-                Item.name.like("PORK%"),
-                Item.name.like("%Chop %")  # Added wildcard for "Chop" match
-            )
-        )
-    ).order_by(Item.name).all()
-
-
-def item_query():
-    return InvItems.query.filter(InvItems.store_id == session["store"])
-
-
-def item_number():
-    return InvItems.query.count()
+from stockcount.main.utils import store_query, stockcount_query
 
 
 class MultiCheckboxField(QuerySelectMultipleField):

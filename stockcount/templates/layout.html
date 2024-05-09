@@ -30,6 +30,34 @@
       <nav class="navbar navbar-expand-lg navbar-dark bg-steel fixed-top">
         <div class="container">
           <a class="navbar-brand me-4" href="/">{{ current_location }}</a>
+          <div class="dropdown" style="text-align: center">
+            <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownTable" data-bs-toggle="dropdown" ,
+                                                                                             data-bs-auto-close="true">
+              Select Store
+            </button>
+            <ul class="dropdown-menu ms-1" aria-labelledby="dropdownTable">
+              <form method="POST" action="" style="text-align: left">
+                {{ store_form.hidden_tag() }}
+                <fieldset id="" class="form-group mb-0">
+                  <div class="form-group mb-1 text-dark">
+                    {{ store_form.stores.label(class="form=control-label") }} {% if
+                    store_form.stores.errors %} {{ store_form.stores(class="form=control
+                    form-control-md is-invalid") }}
+                    <div class="invalid-feedback">
+                      {% for error in store_form.stores.errors %}
+                      <span>{{ error }}</span>
+                      {% endfor %}
+                    </div>
+                    {% else %} {{ store_form.stores(class="form=control form-control-sm") }}
+                    {% endif %}
+                  </div>
+                </fieldset>
+                <div class="form-group" style="text-align: center">
+                  {{ store_form.storeform_submit(class="btn btn-warning btn-sm col-0") }}
+                </div>
+              </form>
+            </ul>
+          </div>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMenu"
                                                                                  aria-controls="navbarMenu" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -43,8 +71,6 @@
               <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.new_item') }}">Items</a>
               <a class="nav-item nav-link" href="{{ url_for('main_blueprint.report') }}">Reports</a>
               <a class="nav-item nav-link" href="/logout">Logout</a>
-              {% else %}
-              <a class="nav-item nav-link" href="{{ url_for('main_blueprint.home') }}">Info</a>
               {% endif %}
             </div>
           </div>
@@ -72,38 +98,6 @@
         <!-- Boxes -->
         <div class="col-lg-4">
           <div class="content-section">
-            <div class="card bg-steel text-light">
-              <div class="card-body text-center">
-                <div class="dropdown" style="text-align: center">
-                  <button class="btn btn-warning dropdown-toggle" type="button" id="dropdownTable" data-bs-toggle="dropdown" ,
-                                                                                                   data-bs-auto-close="true">
-                    Select Stores
-                  </button>
-                  <ul class="dropdown-menu ms-1" aria-labelledby="dropdownTable">
-                    <form method="POST" action="" style="text-align: left">
-                      {{ store_form.hidden_tag() }}
-                      <fieldset id="" class="form-group mb-0">
-                        <div class="form-group mb-1 text-dark">
-                          {{ store_form.stores.label(class="form=control-label") }} {% if
-                          store_form.stores.errors %} {{ store_form.stores(class="form=control
-                          form-control-md is-invalid") }}
-                          <div class="invalid-feedback">
-                            {% for error in store_form.stores.errors %}
-                            <span>{{ error }}</span>
-                            {% endfor %}
-                          </div>
-                          {% else %} {{ store_form.stores(class="form=control form-control-md") }}
-                          {% endif %}
-                        </div>
-                      </fieldset>
-                      <div class="form-group" style="text-align: center">
-                        {{ store_form.storeform_submit(class="btn btn-warning btn-sm col-0") }}
-                      </div>
-                    </form>
-                  </ul>
-                </div>
-              </div>
-            </div>
             <div class="card bg-steel text-light">
               <div class="card-body text-center">
                 <div class="h1 mb-1">
@@ -149,10 +143,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <p>Share QR code with registered users</p>
-            <img class="img-fluid" src="../../static/img/QRCode.svg" />
+            <p>For assistence please email CentraArchy Support</p>
             <a href="mailto: support@centraarchy.com">Email support!</a>
-            <p>Version 1.4.1</p>
           </div>
           <div class="modal-footer">
             <p class="small">Copyright &copy; 2024 CentraArchy.com</p>
