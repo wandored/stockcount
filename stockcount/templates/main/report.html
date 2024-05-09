@@ -4,7 +4,7 @@
 <section class="container bg-steel p-3">
   <legend class="border-bottom text-white mb-6">Count Date: {{ date_time.trans_date.strftime('%A-%m/%d') }}</legend>
   <div class="row">
-    {% for count in count_dict %}
+    {% for count in ordered_counts %}
       <div class="col-md-3 p-1">
         {% if count.daily_variance < 0 %}
           <div class="content-section bg-danger">
