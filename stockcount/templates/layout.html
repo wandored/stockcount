@@ -46,7 +46,7 @@
               <ul class="dropdown-menu ms-1" aria-labelledby="dropdownTable">
                 <form method="POST" action="" style="text-align: left">
                   {{ store_form.hidden_tag() }}
-                  <fieldset id="" class="form-group mb-0">
+                  <fieldset id="store-section" class="form-group mb-0">
                     <div class="form-group mb-1 text-dark">
                       {{ store_form.stores.label(class="form=control-label") }} {% if
                       store_form.stores.errors %} {{ store_form.stores(class="form=control
@@ -73,6 +73,7 @@
               <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.sales') }}">Sales</a>
               <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.new_item') }}">Items</a>
               <a class="nav-item nav-link" href="{{ url_for('main_blueprint.report') }}">Reports</a>
+              <a class="nav-item nav-link" href="https://dashboard.centraarchy.com">Dashboard</a>
               <a class="nav-item nav-link" href="/logout">Logout</a>
               {% endif %}
             </div>
