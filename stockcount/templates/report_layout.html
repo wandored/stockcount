@@ -35,8 +35,7 @@
           </button>
           <div class="collapse navbar-collapse" id="navbarMenu">
           <div class="dropdown" style="text-align: left">
-            <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownTable" data-bs-toggle="dropdown" ,
-                                                                                             data-bs-auto-close="true">
+            <button class="btn bg-gradient-secondary dropdown-toggle text-white" type="button" id="dropdownTable" data-bs-toggle="dropdown" data-bs-auto-close="true">
               Select Store
             </button>
             <ul class="dropdown-menu ms-1" aria-labelledby="dropdownTable">
@@ -69,6 +68,7 @@
               <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.sales') }}">Sales</a>
               <a class="nav-item nav-link" href="{{ url_for('counts_blueprint.new_item') }}">Items</a>
               <a class="nav-item nav-link" href="{{ url_for('main_blueprint.report') }}">Reports</a>
+              <a class="nav-item nav-link" href="https://dashboard.centraarchy.com">Dashboard</a>
               <a class="nav-item nav-link" href="/logout">Logout</a>
               {% endif %}
             </div>
