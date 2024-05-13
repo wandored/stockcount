@@ -13,10 +13,14 @@ from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restau
 from stockcount.counts.forms import StoreForm
 
 
-@blueprint.route("/")
+@blueprint.route("/", methods=["GET", "POST"])
 @blueprint.route("/report/", methods=["GET", "POST"])
 @login_required
 def report():
+    # skip the first error message in the session
+    if session.get("_flashes") is not None:
+        session["_flashes"] = session["_flashes"][1:]
+        
     """route for reports.html"""
     session["access"] = set_user_access()
     if session.get("store") is None or session.get("store") not in session["access"]:
@@ -91,13 +95,30 @@ def report():
             InvCount.trans_date == yesterday,
         ).first()
         
+        ic(query, yesterday_query)
+        
 
         # Get values needed for variance calculation & display 
-        item.count_total = query.today_count if query.today_count is not None else 0
-        item.previous_count = yesterday_query.yesterday_count if yesterday_query.yesterday_count is not None else 0
-        item.purchase_count = query.today_purchase if query.today_purchase is not None else 0
-        item.sales_count = query.today_sales_total if query.today_sales_total is not None else 0
-        item.sales_waste = query.today_sales_waste if query.today_sales_waste is not None else 0
+        if query.today_count is not None:
+            item.count_total = query.today_count
+        else:
+            item.count_total = 0
+        if query.today_purchase is not None:
+            item.purchase_count = query.today_purchase
+        else:
+            item.purchase_count = 0
+        if query.today_sales_total is not None:
+            item.sales_count = query.today_sales_total
+        else:
+            item.sales_count = 0
+        if query.today_sales_waste is not None:
+            item.sales_waste = query.today_sales_waste
+        else:
+            item.sales_waste = 0
+        if yesterday_query is not None:
+            item.previous_count = yesterday_query.yesterday_count
+        else:
+            item.previous_count = 0
 
         # calculate the theory and variance
         item.theory = item.previous_count + item.purchase_count - item.sales_count - item.sales_waste        
