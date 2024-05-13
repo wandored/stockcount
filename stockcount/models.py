@@ -92,7 +92,6 @@ class Users(db.Model, UserMixin):
     def __str__(self):
         return f"{self.first_name}, {self.last_name}, {self.email}, {self.active}, {self.roles}, {self.stores}"
 
-
 user_datastore = SQLAlchemySessionUserDatastore(db.session, Users, Roles)
 
 

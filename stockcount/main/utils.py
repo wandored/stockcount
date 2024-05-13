@@ -33,7 +33,9 @@ def stockcount_query():
             and_(
                 Item.name.like("PORK%"),
                 Item.name.like("%Chop %")  # Added wildcard for "Chop" match
-            )
+            ),
+            Item.name.like("%Chicken Wing Jumbo%"),
+            Item.name.like("%SEAFOOD Crab Cake%"),
         )
     ).order_by(Item.name).all()
 
