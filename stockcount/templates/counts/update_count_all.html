@@ -1,0 +1,56 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="content-section">
+  <form method="POST" action="">
+    {{ multi_form.hidden_tag() }}
+    <fieldset id="" class="form-group mb-2">
+      <legend class="border-bottom mb-2">Enter Count for {{ count_date.strftime("%Y-%m-%d") }}  - {{ count_time.count_time }} </legend>
+      {% for form in multi_form.counts %}
+      {{ form.hidden_tag() }}
+      {{ form.csrf_token() }}
+      <!-- Add a hidden input field for the item ID -->
+      <div class="form-group mb-1">
+        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
+        {% if form.itemname.errors %}
+        {{ form.itemname(class="form-control form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
+        <div class="invalid-feedback">
+          {% for error in form.itemname.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
+        {% endif %}
+      </div>
+      <div>
+        {{ form.eachcount.label(value=form.eachcount.data) }}
+        {% if form.eachcount.errors %}
+        {{ form.eachcount(class="form-control-sm is-invalid", value=form.eachcount.data) }}
+        <div class="invalid-feedback">
+          {% for error in form.eachcount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.eachcount(value=form.eachcount.data) }}
+        {% endif %}
+        {{ form.casecount.label(value=form.casecount.data) }}
+        {% if form.casecount.errors %}
+        {{ form.casecount(class="form-control-sm is-invalid", value=form.casecount.data) }}
+        <div class="invalid-feedback">
+          {% for error in form.casecount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.casecount(value=form.casecount.data) }}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </fieldset>
+    <div class="form-group mb-1">
+      {{ multi_form.submit(class="btn btn-primary") }}
+    </div>
+  </form>
+</div>
+{% endblock content %}

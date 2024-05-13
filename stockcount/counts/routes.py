@@ -23,7 +23,7 @@ from stockcount.counts.utils import calculate_totals
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 
 from icecream import ic
-
+from datetime import datetime
 
 @blueprint.route("/count/", methods=["GET", "POST"])
 @login_required
@@ -243,6 +243,131 @@ def update_count(count_id):
     )
 
 
+@blueprint.route("/count/<string:count_date>/update", methods=["GET", "POST"])
+@login_required
+def update_count_all(count_date):
+    """Update count items"""
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    # Check if date exists in count
+    # make sure count-date is in the format of dd-mm-yyyy
+    count_date = datetime.strptime(count_date, "%Y-%m-%d")
+    
+    # get the count_time from the most recent count on given date
+    count_time = InvCount.query.filter(
+        InvCount.store_id == session["store"],
+        InvCount.trans_date == count_date,
+    ).order_by(InvCount.count_time.desc()).first()
+
+    ic(count_time.count_time)
+    
+    
+    store_form = StoreForm()
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.count"))
+    
+    if count_date is None:
+        flash("No count for that date!", "warning")
+        return redirect(url_for("counts_blueprint.count"))
+    
+    # Get a list of all the items for the restaurant
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can count them!", "warning")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+        
+    # ic(item_list)
+        
+    # Get the count for the selected date
+    counts = InvCount.query.filter(
+        InvCount.store_id == session["store"],
+        InvCount.trans_date == count_date,
+    ).all()
+        
+    # ic(counts)
+        
+    # Create a form for the count based off the item_list
+    multi_form = CountForm(counts=item_list)
+    
+    # ic(multi_form.counts.data)
+        
+    if multi_form.validate_on_submit():        
+        # Submit count update for each item
+        for count_entry in multi_form.counts.data:
+            # First Update exisiting count
+            count = InvCount.query.filter(
+                InvCount.store_id == session["store"],
+                InvCount.trans_date == multi_form.transdate.data,
+            ).all()
+            
+            # Check if count exists for same day and time 
+            exisiting_item = InvCount.query.filter_by(
+                item_id=count_entry["item_id"],
+                trans_date=count_date,
+            ).first()
+            
+            if exisiting_item is not None:
+                # if not new data, skip
+                if exisiting_item.each_count == count_entry["eachcount"] and exisiting_item.case_count == count_entry["casecount"]:
+                    # print("No changes for: ", count_entry["itemname"])
+                    continue
+                # print("Updating count for existing item: ", count_entry["itemname"])
+                exisiting_item.each_count = count_entry["eachcount"]
+                exisiting_item.casecount = count_entry["casecount"]
+                exisiting_item.count_total = (count_entry["eachcount"] + count_entry["casecount"])
+                exisiting_item.previous_total = 0
+                exisiting_item.theory = 0
+                exisiting_item.daily_variance = 0
+                db.session.commit()
+                continue
+                
+            # Secondly add new count
+            # For items in item_list that are not in count
+            if count_entry["item_id"] not in [count.item_id for count in count]:
+                # print("Updating count for new item: ", count_entry["itemname"])
+                count_item = InvCount(
+                    trans_date=count_date,
+                    count_time=count_time.count_time,
+                    item_name=count_entry["itemname"],
+                    each_count=count_entry["eachcount"],
+                    case_count=count_entry["casecount"],
+                    count_total=(count_entry["eachcount"] + count_entry["casecount"]),
+                    previous_total=0,
+                    theory=0,
+                    daily_variance=0,
+                    item_id=count_entry["item_id"],
+                    store_id=session["store"],
+                )
+                db.session.add(count_item)
+                db.session.commit()
+                # ic(count_item)
+        flash("Counts have been updated!", "success")
+        return redirect(url_for("counts_blueprint.count"))
+    elif request.method == "GET":
+        multi_form.transdate.data = count_date
+        multi_form.am_pm.data = count_time.count_time
+        index = 0
+        for item in item_list:
+            multi_form.counts[index].itemname.data = item.item_name
+            multi_form.counts[index].item_id.data = item.id
+            for count in counts:
+                if item.id == count.item_id:
+                    multi_form.counts[index].eachcount.data = count.each_count
+                    multi_form.counts[index].casecount.data = count.case_count
+            index += 1
+        del index, item, count
+        
+    return render_template(
+        "counts/update_count_all.html",
+        title="Update count",
+        legend="Update count",
+        **locals(),
+    )
+
 @blueprint.route("/count/<int:count_id>/delete", methods=["POST"])
 @login_required
 def delete_count(count_id):
@@ -390,6 +515,113 @@ def update_purchases(purchase_id):
         **locals(),
     )
 
+@blueprint.route("/purchases/<string:purchase_date>/update", methods=["GET", "POST"])
+@login_required
+def update_purchase_all(purchase_date):
+    """Update purchase items"""
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    # Check if date exists in purchase
+    # make sure purchase-date is in the format of dd-mm-yyyy
+    purchase_date = datetime.strptime(purchase_date, "%Y-%m-%d")
+        
+    store_form = StoreForm()
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("purchases_blueprint.purchase"))
+    
+    if purchase_date is None:
+        flash("No purchase for that date!", "warning")
+        return redirect(url_for("purchases_blueprint.purchase"))
+    
+    # Get a list of all the items for the restaurant
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can purchase them!", "warning")
+        return redirect(url_for("purchases_blueprint.new_item")
+        )
+        
+    # ic(item_list)
+        
+    # Get the purchase for the selected date
+    purchases = InvPurchases.query.filter(
+        InvPurchases.store_id == session["store"],
+        InvPurchases.trans_date == purchase_date,
+    ).all()
+        
+    # ic(purchases)
+        
+    # Create a form for the purchase based off the item_list
+    multi_form = PurchasesForm(purchases=item_list)
+    
+    # ic(multi_form.purchases.data)
+        
+    if multi_form.validate_on_submit():        
+        # Submit purchase update for each item
+        for purchase_entry in multi_form.purchases.data:
+            # First Update exisiting purchase
+            purchase = InvPurchases.query.filter(
+                InvPurchases.store_id == session["store"],
+                InvPurchases.trans_date == multi_form.transdate.data,
+            ).all()
+            
+            # Check if purchase exists for same day and time 
+            exisiting_item = InvPurchases.query.filter_by(
+                item_id=purchase_entry["item_id"],
+                trans_date=purchase_date,
+            ).first()
+            
+            if exisiting_item is not None:
+                # if not new data, skip
+                if exisiting_item.each_count == purchase_entry["eachcount"] and exisiting_item.case_count == purchase_entry["casecount"]:
+                    # print("No changes for: ", purchase_entry["itemname"])
+                    continue
+                # print("Updating purchase for existing item: ", purchase_entry["itemname"])
+                exisiting_item.each_count = purchase_entry["eachcount"]
+                exisiting_item.case_count = purchase_entry["casecount"]
+                exisiting_item.purchase_total = (purchase_entry["eachcount"] + purchase_entry["casecount"])
+                db.session.commit()
+                continue
+                
+            # Secondly add new purchase
+            # For items in item_list that are not in purchase
+            if purchase_entry["item_id"] not in [purchase.item_id for purchase in purchase]:
+                # print("Updating purchase for new item: ", purchase_entry["itemname"])
+                purchase_item = InvPurchases(
+                    trans_date=purchase_date,
+                    item_name=purchase_entry["itemname"],
+                    each_count=purchase_entry["eachcount"],
+                    case_count=purchase_entry["casecount"],
+                    purchase_total=(purchase_entry["eachcount"] + purchase_entry["casecount"]),
+                    item_id=purchase_entry["item_id"],
+                    store_id=session["store"],
+                )
+                db.session.add(purchase_item)
+                db.session.commit()
+                # ic(purchase_item)
+        flash("purchases have been updated!", "success")
+        return redirect(url_for("counts_blueprint.purchases"))
+    elif request.method == "GET":
+        multi_form.transdate.data = purchase_date
+        index = 0
+        for item in item_list:
+            multi_form.purchases[index].itemname.data = item.item_name
+            multi_form.purchases[index].item_id.data = item.id
+            for purchase in purchases:
+                if item.id == purchase.item_id:
+                    multi_form.purchases[index].eachcount.data = purchase.each_count
+                    multi_form.purchases[index].casecount.data = purchase.case_count
+            index += 1
+        del index, item
+        
+    return render_template(
+        "counts/update_purchases_all.html",
+        title="Update purchase",
+        legend="Update purchase",
+        **locals(),
+    )
 
 @blueprint.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @login_required
@@ -550,6 +782,110 @@ def delete_sales(sales_id):
     calculate_totals(unit.id)
     return redirect(url_for("counts_blueprint.sales"))
 
+@blueprint.route("/sales/<string:sales_date>/update", methods=["GET", "POST"])
+@login_required
+def update_sales_all(sales_date):
+    """Update sales items"""
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    # Check if date exists in sales
+    # make sure sales-date is in the format of dd-mm-yyyy
+    sales_date = datetime.strptime(sales_date, "%Y-%m-%d")
+    
+    store_form = StoreForm()
+    if store_form.storeform_submit.data and store_form.validate():
+        # session["date_selected"] = fiscal_dates["start_day"]
+        data = store_form.stores.data
+        for x in data:
+            session["store"] = x.id
+        return redirect(url_for("counts_blueprint.sales"))
+    
+    if sales_date is None:
+        flash("No sales for that date!", "warning")
+        return redirect(url_for("counts_blueprint.sales"))
+    
+    # Get a list of all the items for the restaurant
+    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
+    if(item_list == []):
+        flash("You must add items to your inventory before you can count them!", "warning")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+        
+    # Get the sales for the selected date
+    sales = InvSales.query.filter(
+        InvSales.store_id == session["store"],
+        InvSales.trans_date == sales_date,
+    ).all()
+        
+    # Create a form for the sales based off the item_list
+    multi_form = SalesForm(sales=item_list)
+    
+    ic(multi_form.sales.data)
+        
+    if multi_form.validate_on_submit():        
+        # Submit sales update for each item
+        for sales_entry in multi_form.sales.data:
+            # First Update exisiting sales
+            sales = InvSales.query.filter(
+                InvSales.store_id == session["store"],
+                InvSales.trans_date == multi_form.transdate.data,
+            ).all()
+            
+            # Check if sales exists for same day and time 
+            exisiting_item = InvSales.query.filter_by(
+                item_id=sales_entry["item_id"],
+                trans_date=sales_date,
+            ).first()
+            
+            if exisiting_item is not None:
+                # if not new data, skip
+                if exisiting_item.each_count == sales_entry["eachcount"] and exisiting_item.waste == sales_entry["waste"]:
+                    # print("No changes for: ", sales_entry["itemname"])
+                    continue
+                # print("Updating sales for existing item: ", sales_entry["itemname"])
+                exisiting_item.each_count = sales_entry["eachcount"]
+                exisiting_item.waste = sales_entry["waste"]
+                exisiting_item.sales_total = (sales_entry["eachcount"] + sales_entry["waste"])
+                db.session.commit()
+                continue
+                
+            # Secondly add new sales
+            # For items in item_list that are not in sales
+            if sales_entry["item_id"] not in [sale.item_id for sale in sales]:
+                # print("Updating sales for new item: ", sales_entry["itemname"])
+                sales_item = InvSales(
+                    trans_date=sales_date,
+                    item_name=sales_entry["itemname"],
+                    each_count=sales_entry["eachcount"],
+                    waste=sales_entry["waste"],
+                    sales_total=(sales_entry["eachcount"] + sales_entry["waste"]),
+                    item_id=sales_entry["item_id"],
+                    store_id=session["store"],
+                )
+                db.session.add(sales_item)
+                db.session.commit()
+                # ic(sales_item)
+        flash("Sales have been updated!", "success")
+        return redirect(url_for("counts_blueprint.sales"))
+    elif request.method == "GET":
+        multi_form.transdate.data = sales_date
+        index = 0
+        for item in item_list:
+            multi_form.sales[index].itemname.data = item.item_name
+            multi_form.sales[index].item_id.data = item.id
+            for sale in sales:
+                if item.id == sale.item_id:
+                    multi_form.sales[index].eachcount.data = sale.each_count
+                    multi_form.sales[index].waste.data = sale.waste
+            index += 1
+        del index, item, sale
+        
+    return render_template(
+        "counts/update_sales_all.html",
+        title="Update Sales",
+        legend="Update Sales",
+        **locals(),
+    )
+    
 
 @blueprint.route("/item/new", methods=["GET", "POST"])
 @login_required
