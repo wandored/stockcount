@@ -10,11 +10,17 @@
             </a>
               <ul class="navbar-nav">
                 <li class="nav-item">
-                  <a target="_blank" 
-                     href="/reset" 
-                     class="btn btn-sm mb-0 me-1 bg-gradient-secondary">Reset Password</a>
+                  <a href="#" 
+                    onclick="redirectToResetPage()" 
+                    class="btn btn-sm mb-0 me-1 bg-gradient-secondary">Reset Password</a>
                 </li>
               </ul>
+              
+              <script>
+                function redirectToResetPage() {
+                  window.location.href = 'https://dashboard.centraarchy.com/reset';
+                }
+              </script>
           </div>
         </nav>
         <!-- End Navbar -->
