@@ -12,6 +12,7 @@ from stockcount.main.utils import set_user_access
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
 from stockcount.counts.forms import StoreForm
 
+import logging
 
 @blueprint.route("/", methods=["GET", "POST"])
 @blueprint.route("/report/", methods=["GET", "POST"])
@@ -46,11 +47,13 @@ def report():
                 flash(f"Store changed to {x.name}", "success")
             else:
                 flash("You do not have access to that store!", "danger")
+                logging.error(f"User {current_user.email} attempted to access store {x.id} without permission")
         return redirect(url_for("main_blueprint.report"))
 
     
     if date_time is None:
         flash("You must first enter Counts to see Reports!", "warning")
+        logging.error(f"User {current_user.email} attempted to access reports without counts")
         return redirect(url_for("counts_blueprint.count"))
     
     # convert the date_time to a date
@@ -95,7 +98,7 @@ def report():
             InvCount.trans_date == yesterday,
         ).first()
         
-        ic(query, yesterday_query)
+        # ic(query, yesterday_query)
         
 
         # Get values needed for variance calculation & display 
@@ -152,6 +155,7 @@ def report_details(product):
                 flash(f"Store changed to {x.name}", "success")
             else:
                 flash("You do not have access to that store!", "danger")
+                logging.error(f"User {current_user.email} attempted to access store {x.id} without permission")
         return redirect(url_for("main_blueprint.report"))
 
     current_location = Restaurants.query.filter_by(id=session["store"]).first()

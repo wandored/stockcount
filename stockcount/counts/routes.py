@@ -25,6 +25,8 @@ from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restau
 from icecream import ic
 from datetime import datetime
 
+import logging
+
 @blueprint.route("/count/", methods=["GET", "POST"])
 @login_required
 def count():
@@ -53,11 +55,13 @@ def count():
                 flash(f"Store changed to {x.name}", "success")
             else:
                 flash("You do not have access to that store!", "danger")
+                logging.error(f"User {current_user.email} attempted to access store {x.id} without permission")
         return redirect(url_for("counts_blueprint.count"))
 
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can count them!", "warning")
+        logging.error(f"User {current_user.email} attempted to count items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
         
@@ -87,6 +91,7 @@ def count():
                     f"{count_entry['itemname']} already has a count on {multi_form.transdate.data}, please enter a different date or time",
                     "warning",
                 )
+                logging.error(f"User {current_user.email} attempted to count item {count_entry['itemname']} that already has a count for {multi_form.transdate.data}")
                 return redirect(url_for("counts_blueprint.count"))
         
         # get previous count
@@ -168,6 +173,7 @@ def update_count(count_id):
     item = InvCount.query.get_or_404(count_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
+        logging.error(f"User {current_user.email} attempted to update count for inactive item {item.item_name}")
         return redirect(url_for("counts_blueprint.count"))
     inv_items = InvCount.query.all()
     form = UpdateCountForm()
@@ -271,12 +277,14 @@ def update_count_all(count_date):
     
     if count_date is None:
         flash("No count for that date!", "warning")
+        logging.error(f"User {current_user.email} attempted to update count for non-existent date {count_date}")
         return redirect(url_for("counts_blueprint.count"))
     
     # Get a list of all the items for the restaurant
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can count them!", "warning")
+        logging.error(f"User {current_user.email} attempted to update count without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
         
@@ -408,6 +416,7 @@ def purchases():
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can count them!", "warning")
+        logging.error(f"User {current_user.email} attempted to purchase items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
     
@@ -434,6 +443,7 @@ def purchases():
                     f"{purchase_entry['itemname']} already has a purchase on {multi_form.transdate.data}, please enter a different date or edit the existing purchase!",
                     "warning",
                 )
+                logging.error(f"User {current_user.email} attempted to purchase item {purchase_entry['itemname']} that already has a purchase on {multi_form.transdate.data}")
                 return redirect(url_for("counts_blueprint.purchases"))
         
         for purchase_entry in multi_form.purchases.data:
@@ -475,6 +485,7 @@ def update_purchases(purchase_id):
     item = InvPurchases.query.get_or_404(purchase_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
+        logging.error(f"User {current_user.email} attempted to update purchase for inactive item {item.item_name}")
         return redirect(url_for("counts_blueprint.purchases"))
     inv_items = InvPurchases.query.filter(
         InvPurchases.store_id == session["store"]
@@ -534,12 +545,14 @@ def update_purchase_all(purchase_date):
     
     if purchase_date is None:
         flash("No purchase for that date!", "warning")
+        logging.error(f"User {current_user.email} attempted to update purchase for non-existent date {purchase_date}")
         return redirect(url_for("purchases_blueprint.purchase"))
     
     # Get a list of all the items for the restaurant
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can purchase them!", "warning")
+        logging.error(f"User {current_user.email} attempted to purchase items without adding any items to inventory")
         return redirect(url_for("purchases_blueprint.new_item")
         )
         
@@ -666,6 +679,7 @@ def sales():
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can count them!", "warning")
+        logging.error(f"User {current_user.email} attempted to sales items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
 
@@ -692,6 +706,7 @@ def sales():
                     f"{sales_entry['itemname']} already has a sales on {multi_form.transdate.data}, please enter a different date or edit the existing sales!",
                     "warning",
                 )
+                logging.error(f"User {current_user.email} attempted to sales item {sales_entry['itemname']} that already has sales on {multi_form.transdate.data}")
                 return redirect(url_for("counts_blueprint.sales"))
         
         for sales_entry in multi_form.sales.data:
@@ -732,6 +747,7 @@ def update_sales(sales_id):
     item = InvSales.query.get_or_404(sales_id)
     if not item.item_id:
         flash(f"{item.item_name} is not an active product!", "warning")
+        logging.error(f"User {current_user.email} attempted to update sales for inactive item {item.item_name}")
         return redirect(url_for("counts_blueprint.sales"))
     inv_items = InvSales.query.all()
     form = UpdateSalesForm()
@@ -801,12 +817,14 @@ def update_sales_all(sales_date):
     
     if sales_date is None:
         flash("No sales for that date!", "warning")
+        logging.error(f"User {current_user.email} attempted to update sales for non-existent date {sales_date}")
         return redirect(url_for("counts_blueprint.sales"))
     
     # Get a list of all the items for the restaurant
     item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
     if(item_list == []):
         flash("You must add items to your inventory before you can count them!", "warning")
+        logging.error(f"User {current_user.email} attempted to sales items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
         
