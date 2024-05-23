@@ -258,7 +258,7 @@ def update_count_all(count_date):
         InvCount.trans_date == count_date,
     ).order_by(InvCount.count_time.desc()).first()
 
-    ic(count_time.count_time)
+    # ic(count_time.count_time)
     
     
     store_form = StoreForm()
@@ -819,7 +819,7 @@ def update_sales_all(sales_date):
     # Create a form for the sales based off the item_list
     multi_form = SalesForm(sales=item_list)
     
-    ic(multi_form.sales.data)
+    # ic(multi_form.sales.data)
         
     if multi_form.validate_on_submit():        
         # Submit sales update for each item

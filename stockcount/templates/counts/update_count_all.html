@@ -23,17 +23,6 @@
         {% endif %}
       </div>
       <div>
-        {{ form.eachcount.label(value=form.eachcount.data) }}
-        {% if form.eachcount.errors %}
-        {{ form.eachcount(class="form-control-sm is-invalid", value=form.eachcount.data) }}
-        <div class="invalid-feedback">
-          {% for error in form.eachcount.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
-        </div>
-        {% else %}
-        {{ form.eachcount(value=form.eachcount.data) }}
-        {% endif %}
         {{ form.casecount.label(value=form.casecount.data) }}
         {% if form.casecount.errors %}
         {{ form.casecount(class="form-control-sm is-invalid", value=form.casecount.data) }}
@@ -44,6 +33,17 @@
         </div>
         {% else %}
         {{ form.casecount(value=form.casecount.data) }}
+        {% endif %}
+        {{ form.eachcount.label(value=form.eachcount.data) }}
+        {% if form.eachcount.errors %}
+        {{ form.eachcount(class="form-control-sm is-invalid", value=form.eachcount.data) }}
+        <div class="invalid-feedback">
+          {% for error in form.eachcount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.eachcount(value=form.eachcount.data) }}
         {% endif %}
       </div>
       {% endfor %}
