@@ -5,59 +5,72 @@
     {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
       <legend class="border-bottom mb-2">Enter Sales</legend>
-      <div class="form-group mb-1">
-        {{ multi_form.transdate.label(class="form-control-label") }}
-        {% if multi_form.transdate.errors %}
-        {{ multi_form.transdate(class="form-control form-control-md is-invalid") }}
-        <div class="invalid-feedback">
-          {% for error in multi_form.transdate.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
+      <div class="col-md-6">
+        <div class="form-group mb-1">
+            {{ multi_form.transdate.label(class="form-control-label", style="width: 100%;") }}
+            {% if multi_form.transdate.errors %}
+            {{ multi_form.transdate(class="form-control form-control-md is-invalid", style="width: 100%;") }}
+            <div class="invalid-feedback">
+                {% for error in multi_form.transdate.errors %}
+                <span>{{ error }}</span>
+                {% endfor %}
+            </div>
+            {% else %}
+            {{ multi_form.transdate(class="form-control form-control-md", style="width: 50%;") }}
+            {% endif %}
         </div>
-        {% else %}
-        {{ multi_form.transdate(class="form-control form-control-md") }}
-        {% endif %}
-      </div>
+    </div>
+    <hr> <!-- Divider line -->
       {% for form in multi_form.sales %}
       {{ form.csrf_token() }}
       <div class="form-group mb-1">
-        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
+        <label class="form-control-label">{{ form.itemname.label }}</label>
+        
         {% if form.itemname.errors %}
-        {{ form.itemname(class="form-control form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
+        <input type="text" class="form-control form-control-md is-invalid" value="{{ form.itemname.data }}" readonly>
         <div class="invalid-feedback">
-          {% for error in form.itemname.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
+            {% for error in form.itemname.errors %}
+            <span>{{ error }}</span>
+            {% endfor %}
         </div>
         {% else %}
-        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
+        <h5 class="subtitle">{{ form.itemname.data }}</h5>
         {% endif %}
       </div>
-      <div class="style=width: 25%">
-        {{ form.eachcount.label(class="form-control-label", value=form.eachcount.data) }}
-        {% if form.eachcount.errors %}
-        {{ form.eachcount(class="form-control form-control-sm is-invalid", value=form.eachcount.data) }}
-        <div class="invalid-feedback">
-          {% for error in form.eachcount.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
-        </div>
-        {% else %}
-        {{ form.eachcount(class="form-control", value=form.eachcount.data) }}
-        {% endif %}
-        {{ form.waste.label(class="form-control-label", value=form.waste.data) }}
-        {% if form.waste.errors %}
-        {{ form.waste(class="form-control form-control-sm is-invalid", value=form.waste.data) }}
-        <div class="invalid-feedback">
-          {% for error in form.waste.errors %}
-          <span>{{ error }}</span>
-          {% endfor %}
-        </div>
-        {% else %}
-        {{ form.waste(class="form-control", value=form.waste.data) }}
-        {% endif %}
+    <div class="row">
+      <div class="col-md-6">
+          <div class="form-group">
+              {{ form.eachcount.label(class="form-control-label") }}
+              {% if form.eachcount.errors %}
+              {{ form.eachcount(class="form-control form-control-md is-invalid", style="width: 80%;") }}
+              <div class="invalid-feedback">
+                  {% for error in form.eachcount.errors %}
+                  <span>{{ error }}</span>
+                  {% endfor %}
+              </div>
+              {% else %}
+              {{ form.eachcount(class="form-control form-control-md", style="width: 80%;") }}
+              {% endif %}
+          </div>
       </div>
-      {% endfor %}
+      <div class="col-md-6">
+          <div class="form-group">
+              {{ form.waste.label(class="form-control-label") }}:
+              {% if form.waste.errors %}
+              {{ form.waste(class="form-control form-control-md is-invalid", style="width: 80%;") }}
+              <div class="invalid-feedback">
+                  {% for error in form.waste.errors %}
+                  <span>{{ error }}</span>
+                  {% endfor %}
+              </div>
+              {% else %}
+              {{ form.waste(class="form-control form-control-md", style="width: 80%;") }}
+              {% endif %}
+          </div>
+      </div>
+    </div>
+    <hr> <!-- Divider line -->
+    {% endfor %}
     </fieldset>
     <div class="form-group mb-1">
       {{ multi_form.submit(class="btn btn-primary") }}
