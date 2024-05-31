@@ -4,25 +4,11 @@
   <form method="POST" action="">
     {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
-      <legend class="border-bottom mb-2">Enter Purchases</legend>
-      <div class="col-md-6">
-          <div class="form-group mb-1">
-              {{ multi_form.transdate.label(class="form-control-label", style="width: 100%;") }}
-              {% if multi_form.transdate.errors %}
-              {{ multi_form.transdate(class="form-control form-control-md is-invalid", style="width: 100%;") }}
-              <div class="invalid-feedback">
-                  {% for error in multi_form.transdate.errors %}
-                  <span>{{ error }}</span>
-                  {% endfor %}
-              </div>
-          {% else %}
-          {{ multi_form.transdate(class="form-control form-control-md", style="width: 50%;") }}
-          {% endif %}
-        </div>
-      </div>
-      <hr> <!-- Divider line -->
+      <legend class="border-bottom mb-2">Enter purchase for {{ purchase_date.strftime("%Y-%m-%d") }} </legend>
       {% for form in multi_form.purchases %}
+      {{ form.hidden_tag() }}
       {{ form.csrf_token() }}
+      <!-- Add a hidden input field for the item ID -->
       <div class="form-group mb-1">
         <label class="form-control-label">{{ form.itemname.label }}</label>
         
@@ -36,7 +22,7 @@
         {% else %}
         <h5 class="subtitle">{{ form.itemname.data }}</h5>
         {% endif %}
-      </div>
+    </div>
     <div class="row">
       <div class="col-md-6">
           <div class="form-group">
@@ -70,42 +56,11 @@
       </div>
     </div>
     <hr> <!-- Divider line -->
-      {% endfor %}
+    {% endfor %}
     </fieldset>
     <div class="form-group mb-1">
       {{ multi_form.submit(class="btn btn-primary") }}
     </div>
+  </form>
 </div>
-<!-- Count Section -->
-<section id="counts" class="p-1 bg-steel">
-  {% for group in ordered_purchases.items %}
-  <div class="content-section">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <legend class="border-bottom mb-0">{{ group.trans_date.strftime('%A-%m/%d') }}</legend>
-      <!-- Add button here -->
-      <a href="/purchases/{{ group.trans_date }}/update" class="btn btn-primary btn-sm" style="width: 100px; height: 30px;">Edit</a>
-    </div>
-    {% for item in purchase_items%}
-    {% if item.trans_date == group.trans_date  %}
-    <div class="media-body">
-      <a class="me-2" href="{{ url_for('counts_blueprint.update_purchases', purchase_id=item.id) }}">{{ item.item_name }}</a>
-      <small class="text-muted"> Total Purchased  -  {{ item.purchase_total }}</small>
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-  {% endfor %}
-</section>
-<!-- Page Numbering -->
-{% for page_num in ordered_purchases.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-{% if page_num %}
-{%if ordered_purchases.page == page_num %}
-<a class="btn btn-info mb-4" href="{{ url_for('counts_blueprint.purchases', page=page_num) }}">{{ page_num }}</a>
-{% else %}
-<a class="btn btn-outline-info mb-4" href="{{ url_for('counts_blueprint.purchases', page=page_num) }}">{{ page_num }}</a>
-{% endif %}
-{% else %}
-...
-{% endif %}
-{% endfor %}
 {% endblock content %}
