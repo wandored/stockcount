@@ -99,7 +99,11 @@ def report():
         ).first()
         
         # ic(query, yesterday_query)
-        
+        if query is None or yesterday_query is None:
+            # go to counts page if there is no data
+            flash("You must first enter Counts to see Reports!", "warning")
+            logging.error(f"User {current_user.email} attempted to access reports without counts")
+            return redirect(url_for("counts_blueprint.count"))
 
         # Get values needed for variance calculation & display 
         if query.today_count is not None:
