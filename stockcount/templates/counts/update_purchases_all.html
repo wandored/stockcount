@@ -10,53 +10,43 @@
       {{ form.csrf_token() }}
       <!-- Add a hidden input field for the item ID -->
       <div class="form-group mb-1">
-        <label class="form-control-label">{{ form.itemname.label }}</label>
-        
+        {{ form.itemname.label(class="form-control-label", value=form.itemname.data, readonly="readonly") }}
         {% if form.itemname.errors %}
-        <input type="text" class="form-control form-control-md is-invalid" value="{{ form.itemname.data }}" readonly>
+        {{ form.itemname(class="form-control form-control-md is-invalid", value=form.itemname.data, readonly="readonly") }}
         <div class="invalid-feedback">
-            {% for error in form.itemname.errors %}
-            <span>{{ error }}</span>
-            {% endfor %}
+          {% for error in form.itemname.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
         </div>
         {% else %}
-        <h5 class="subtitle">{{ form.itemname.data }}</h5>
+        {{ form.itemname(class="form-control form-control-md", value=form.itemname.data, readonly="readonly") }}
         {% endif %}
-    </div>
-    <div class="row">
-      <div class="col-md-6">
-          <div class="form-group">
-              {{ form.casecount.label(class="form-control-label") }}
-              {% if form.casecount.errors %}
-              {{ form.casecount(class="form-control form-control-md is-invalid", style="width: 80%;") }}
-              <div class="invalid-feedback">
-                  {% for error in form.casecount.errors %}
-                  <span>{{ error }}</span>
-                  {% endfor %}
-              </div>
-              {% else %}
-              {{ form.casecount(class="form-control form-control-md", style="width: 80%;") }}
-              {% endif %}
-          </div>
       </div>
-      <div class="col-md-6">
-          <div class="form-group">
-              {{ form.eachcount.label(class="form-control-label") }}
-              {% if form.eachcount.errors %}
-              {{ form.eachcount(class="form-control form-control-md is-invalid", style="width: 80%;") }}
-              <div class="invalid-feedback">
-                  {% for error in form.eachcount.errors %}
-                  <span>{{ error }}</span>
-                  {% endfor %}
-              </div>
-              {% else %}
-              {{ form.eachcount(class="form-control form-control-md", style="width: 80%;") }}
-              {% endif %}
-          </div>
+      <div>
+        {{ form.casecount.label(value=form.casecount.data) }}
+        {% if form.casecount.errors %}
+        {{ form.casecount(class="form-control-sm is-invalid", value=form.casecount.data) }}
+        <div class="invalid-feedback">
+          {% for error in form.casecount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.casecount(value=form.casecount.data) }}
+        {% endif %}
+        {{ form.eachcount.label(value=form.eachcount.data) }}
+        {% if form.eachcount.errors %}
+        {{ form.eachcount(class="form-control-sm is-invalid", value=form.eachcount.data) }}
+        <div class="invalid-feedback">
+          {% for error in form.eachcount.errors %}
+          <span>{{ error }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        {{ form.eachcount(value=form.eachcount.data) }}
+        {% endif %}
       </div>
-    </div>
-    <hr> <!-- Divider line -->
-    {% endfor %}
+      {% endfor %}
     </fieldset>
     <div class="form-group mb-1">
       {{ multi_form.submit(class="btn btn-primary") }}
