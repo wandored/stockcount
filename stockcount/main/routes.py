@@ -9,7 +9,7 @@ from sqlalchemy import and_, func
 from stockcount import db
 from stockcount.main import blueprint
 from stockcount.main.utils import set_user_access
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, StockcountPurchases
 from stockcount.counts.forms import StoreForm
 
 import logging
@@ -37,6 +37,8 @@ def report():
         .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
         .first()
     )
+    
+    ic(date_time)
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -66,15 +68,15 @@ def report():
         # Query for today's count, purchases, sales, and waste
         query = db.session.query(
             InvCount.count_total.label("today_count"),
-            InvPurchases.purchase_total.label("today_purchase"),
+            StockcountPurchases.each_count.label("today_purchase"),
             InvSales.each_count.label("today_sales_total"),
             InvSales.waste.label("today_sales_waste"),
         ).outerjoin(
-            InvPurchases,
+            StockcountPurchases,
             and_(
-                InvPurchases.store_id == InvCount.store_id,
-                InvPurchases.item_id == InvCount.item_id,
-                InvPurchases.trans_date == InvCount.trans_date
+                StockcountPurchases.id == InvCount.store_id,
+                StockcountPurchases.item == InvCount.item_name,
+                StockcountPurchases.date == InvCount.trans_date
             )
         ).outerjoin(
             InvSales,
@@ -97,14 +99,16 @@ def report():
             InvCount.item_id == item.id,
             InvCount.trans_date == yesterday,
         ).first()
-
+        
+        ic(item.item_name, query, yesterday_query)
+        
         # Get values needed for variance calculation & display 
         if query.today_count is not None:
             item.count_total = query.today_count
         else:
             item.count_total = 0
         if query.today_purchase is not None:
-            item.purchase_count = query.today_purchase
+            item.purchase_count = int(query.today_purchase)
         else:
             item.purchase_count = 0
         if query.today_sales_total is not None:
@@ -186,11 +190,11 @@ def report_details(product):
         InvSales.trans_date >= weekly,
     )
     purchase_weekly = db.session.query(
-        func.sum(InvPurchases.purchase_total).label("total")
+        func.sum(StockcountPurchases.each_count).label("total")
     ).filter(
-        InvPurchases.store_id == session["store"],
-        InvPurchases.item_id == product,
-        InvPurchases.trans_date >= weekly,
+        StockcountPurchases.id == session["store"],
+        StockcountPurchases.item == product,
+        StockcountPurchases.date >= weekly,
     )
     on_hand_weekly = db.session.query(
         func.avg(InvCount.count_total).label("average")
@@ -276,7 +280,7 @@ def report_details(product):
     result = (
         db.session.query(
             InvCount.trans_date,
-            func.sum(InvPurchases.purchase_total).label("purchase_count"),
+            func.sum(StockcountPurchases.each_count).label("purchase_count"),
             func.sum(InvSales.each_count).label("sales_count"),
             func.sum(InvSales.waste).label("sales_waste"),
             InvCount.count_total,
@@ -291,11 +295,11 @@ def report_details(product):
             ),
         )
         .outerjoin(
-            InvPurchases,
+            StockcountPurchases,
             and_(
-                InvPurchases.trans_date == InvCount.trans_date,
-                InvPurchases.item_id == product,
-                InvPurchases.store_id == session["store"],
+                StockcountPurchases.date == InvCount.trans_date,
+                StockcountPurchases.item == InvCount.item_name,
+                StockcountPurchases.id == session["store"],
             ),
         )
         .group_by(
@@ -316,6 +320,7 @@ def report_details(product):
     for row in result:
         row_dict = row._asdict()
         row_dict['previous_total'] = 0
+        row_dict['purchase_count'] = int(row_dict['purchase_count'] or 0)
         row_dict['theory'] = 0
         row_dict['daily_variance'] = 0
         details.append(row_dict)
@@ -334,7 +339,7 @@ def report_details(product):
             details[i]['previous_total'] = seven_days_ago_total[0]
             
         # calculate theory and variance
-        details[i]['theory'] = (details[i]['previous_total'] or 0) + (details[i]['purchase_count'] or 0) - (details[i]['sales_count'] or 0) - (details[i]['sales_waste'] or 0)
+        details[i]['theory'] = (details[i]['previous_total'] or 0) + int(details[i]['purchase_count'] or 0) - (details[i]['sales_count'] or 0) - (details[i]['sales_waste'] or 0)
         details[i]['daily_variance'] = (details[i]['count_total'] or 0) - (details[i]['theory'] or 0)
         
         yesterday -= timedelta(days=1)

@@ -221,3 +221,18 @@ class InvSales(db.Model):
 
     def __repr__(self):
         return f"InvSales('{self.trans_date}', '{self.item_name}', '{self.each_count}', '{self.waste}', '{self.sales_total}', '{self.item_id}', '{self.store_id}')"
+
+class StockcountPurchases(db.Model):
+    __tablename__ = "stockcount-purchases-test"
+    
+    transactionid = db.Column(db.String, primary_key=True)
+    date = db.Column(db.String)
+    week = db.Column(db.Integer)
+    period = db.Column(db.Integer)
+    year = db.Column(db.Integer)
+    id = db.Column(db.Integer)
+    store = db.Column(db.String)
+    item = db.Column(db.String)
+    quantity = db.Column(db.Integer)
+    uofm = db.Column(db.String)
+    each_count = db.Column(db.Integer)
