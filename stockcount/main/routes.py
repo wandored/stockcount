@@ -193,7 +193,7 @@ def report_details(product):
         func.sum(StockcountPurchases.each_count).label("total")
     ).filter(
         StockcountPurchases.id == session["store"],
-        StockcountPurchases.item == product,
+        StockcountPurchases.item == count_daily.item_name,
         StockcountPurchases.date >= weekly,
     )
     on_hand_weekly = db.session.query(
@@ -203,6 +203,13 @@ def report_details(product):
         InvCount.item_id == product,
         InvCount.trans_date >= weekly,
     )
+    
+    # get the number from purchase_weekly
+    purchase_total = 0
+    for row in purchase_weekly:
+        purchase_total = row.total
+    
+    purchase_total = int(purchase_total or 0)
 
     # Chart 1
     unit_query = (
