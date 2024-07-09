@@ -223,7 +223,7 @@ class InvSales(db.Model):
         return f"InvSales('{self.trans_date}', '{self.item_name}', '{self.each_count}', '{self.waste}', '{self.sales_total}', '{self.item_id}', '{self.store_id}')"
 
 class StockcountPurchases(db.Model):
-    __tablename__ = "stockcount-purchases-test"
+    __tablename__ = "stockcount_purchases_test"
     
     transactionid = db.Column(db.String, primary_key=True)
     date = db.Column(db.String)
