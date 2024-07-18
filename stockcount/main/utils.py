@@ -36,6 +36,7 @@ def stockcount_query():
             ),
             Item.name.like("%Chicken Wing Jumbo%"),
             Item.name.like("%SEAFOOD Crab Cake%"),
+            Item.name.like("%PREP Marination Sirloin%")
         )
     ).order_by(Item.name).all()
 
