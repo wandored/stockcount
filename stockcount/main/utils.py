@@ -55,57 +55,71 @@ def execute_query(query, param):
     results = db.session.execute(stmt, param).fetchall()
     return results
 
+def getSirloinPurchases(store_id, start_date, end_date):
+    query = """
+    SELECT
+        date,
+        item,
+        unit_count
+    FROM stockcount_purchases
+    WHERE date >= :start_date AND date <= :end_date AND id = :store_id AND item = 'BEEF Steak 10oz Sirloin Choice';
+    """
+
+    params = {
+        'store_id': store_id,
+        'start_date': start_date,
+        'end_date': end_date
+    }
+
+    results = execute_query(query, params)
+    return results
+
+
 def getVariance(store_id, date):
     query = """
-        WITH current_day AS (
-            SELECT item_id, item_name, count_total
-            FROM inv_count
-            WHERE store_id = :store_id AND trans_date = :trans_date
-        ),
-        previous_day AS (
-            SELECT item_name, count_total AS previous_total
-            FROM inv_count
-            WHERE store_id = :store_id AND trans_date = :previous_date
-        ),
-        sales_counts AS (
-            SELECT ingredient, SUM(sales_count) AS sales_count
-            FROM stockcount_sales
-            WHERE date = :sales_date AND store_id = :store_id
-            GROUP BY ingredient
-        ),
-        purchase_counts AS (
-            SELECT item, CAST(unit_count AS int) AS purchase_count
-            FROM stockcount_purchases
-            WHERE date = :purchase_date AND id = :store_id
-        ),
-        locations AS (
-            SELECT name AS store
-            FROM restaurants
-            WHERE id = :store_id
-        ),
-        theory_calculation AS (
-            SELECT
-                current_day.item_name,
-                previous_day.previous_total + COALESCE(purchase_counts.purchase_count, 0)
-                    - COALESCE(sales_counts.sales_count, 0)
-                    - COALESCE(waste_counts.base_qty, 0) AS theory
-            FROM current_day
-            JOIN previous_day ON current_day.item_name = previous_day.item_name
-            LEFT JOIN purchase_counts ON current_day.item_name = purchase_counts.item
-            LEFT JOIN sales_counts ON current_day.item_name = sales_counts.ingredient
-            LEFT JOIN (
-                SELECT base_qty, item
-                FROM stockcount_waste
-                WHERE date = :waste_date
-                  AND store = (SELECT store FROM locations)
-            ) AS waste_counts ON current_day.item_name = waste_counts.item
-        )
+    WITH current_day AS (
+        SELECT item_id, item_name, count_total
+        FROM inv_count
+        WHERE store_id = :store_id AND trans_date = :trans_date
+    ),
+    previous_day AS (
+        SELECT item_name, COALESCE(count_total, 0) AS previous_total
+        FROM inv_count
+        WHERE store_id = :store_id AND trans_date = :previous_date
+    ),
+    sales_counts AS (
+        SELECT item_name, COALESCE(each_count, 0) AS sales_count, COALESCE(waste, 0) AS waste_count
+        FROM inv_sales
+        WHERE trans_date = :sales_date AND store_id = :store_id
+        GROUP BY item_name, each_count, waste
+    ),
+    purchase_counts AS (
+        SELECT item, CAST(COALESCE(unit_count, 0) AS int) AS purchase_count
+        FROM stockcount_purchases
+        WHERE date = :purchase_date AND id = :store_id
+    ),
+    locations AS (
+        SELECT name AS store
+        FROM restaurants
+        WHERE id = :store_id
+    ),
+    theory_calculation AS (
         SELECT
-            item_id,
-            item_name,
-            CAST(count_total - theory AS INT) AS daily_variance
-        FROM current_day
-        JOIN theory_calculation USING (item_name);
+            current_day.item_name,
+            COALESCE(previous_day.previous_total, 0) + COALESCE(purchase_counts.purchase_count, 0)
+            - COALESCE(sales_counts.sales_count, 0)
+            - COALESCE(sales_counts.waste_count, 0) AS theory
+            FROM current_day
+            LEFT JOIN previous_day ON current_day.item_name = previous_day.item_name
+            LEFT JOIN purchase_counts ON current_day.item_name = purchase_counts.item
+            LEFT JOIN sales_counts ON current_day.item_name = sales_counts.item_name
+    )
+    SELECT
+        item_id,
+        item_name,
+        CAST(COALESCE(count_total, 0) - theory AS INT) AS daily_variance
+    FROM current_day
+    JOIN theory_calculation USING (item_name);
     """
     
     params = {

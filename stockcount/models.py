@@ -272,3 +272,15 @@ class StockcountWaste(db.Model):
     base_qty = db.Column(db.Float)
     
     __table_args__ = (PrimaryKeyConstraint('date', 'store', 'item', name='unique_waste'),)
+
+class RecipeIngredients(db.Model):
+    __tablename__ = "recipe_ingredients"
+    
+    concept = db.Column(db.String)
+    menu_item = db.Column(db.String)
+    recipe = db.Column(db.String)
+    ingredient = db.Column(db.String)
+    qty = db.Column(db.Float)
+    uofm = db.Column(db.String)
+    
+    __table_args__ = (PrimaryKeyConstraint('menu_item', 'recipe', 'ingredient'),)

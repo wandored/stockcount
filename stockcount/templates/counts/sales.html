@@ -1,112 +1,61 @@
 {% extends 'layout.html' %}
 {% block content %}
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flask App</title>
+  <style>
+      .styled-text {
+          font-weight: bold;
+          font-size: 18px; /* Adjust as needed */
+      }
+  </style>
+</head>
 <div class="content-section">
   <form method="POST" action="">
     {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
-      <legend class="border-bottom mb-2">Enter Sales</legend>
-      <div class="col-md-6">
-        <div class="form-group mb-1">
-            {{ multi_form.transdate.label(class="form-control-label", style="width: 100%;") }}
-            {% if multi_form.transdate.errors %}
-            {{ multi_form.transdate(class="form-control form-control-md is-invalid", style="width: 100%;") }}
-            <div class="invalid-feedback">
-                {% for error in multi_form.transdate.errors %}
-                <span>{{ error }}</span>
-                {% endfor %}
-            </div>
-            {% else %}
-            {{ multi_form.transdate(class="form-control form-control-md", style="width: 50%;") }}
-            {% endif %}
-        </div>
-    </div>
+      <legend class="border-bottom mb-2">Enter Sales for {{ date }}</legend>
     <hr> <!-- Divider line -->
-      {% for form in multi_form.sales %}
-      {{ form.csrf_token() }}
-      <div class="form-group mb-1">
-        <label class="form-control-label">{{ form.itemname.label }}</label>
-        
-        {% if form.itemname.errors %}
-        <input type="text" class="form-control form-control-md is-invalid" value="{{ form.itemname.data }}" readonly>
-        <div class="invalid-feedback">
-            {% for error in form.itemname.errors %}
-            <span>{{ error }}</span>
-            {% endfor %}
-        </div>
-        {% else %}
-        <h5 class="subtitle">{{ form.itemname.data }}</h5>
-        {% endif %}
-      </div>
-    <div class="row">
-      <div class="col-md-6">
-          <div class="form-group">
-              {{ form.eachcount.label(class="form-control-label") }}
-              {% if form.eachcount.errors %}
-              {{ form.eachcount(class="form-control form-control-md is-invalid", style="width: 80%;") }}
-              <div class="invalid-feedback">
-                  {% for error in form.eachcount.errors %}
-                  <span>{{ error }}</span>
-                  {% endfor %}
-              </div>
-              {% else %}
-              {{ form.eachcount(class="form-control form-control-md", style="width: 80%;") }}
-              {% endif %}
-          </div>
-      </div>
-      <div class="col-md-6">
-          <div class="form-group">
-              {{ form.waste.label(class="form-control-label") }}:
-              {% if form.waste.errors %}
-              {{ form.waste(class="form-control form-control-md is-invalid", style="width: 80%;") }}
-              <div class="invalid-feedback">
-                  {% for error in form.waste.errors %}
-                  <span>{{ error }}</span>
-                  {% endfor %}
-              </div>
-              {% else %}
-              {{ form.waste(class="form-control form-control-md", style="width: 80%;") }}
-              {% endif %}
-          </div>
-      </div>
-    </div>
-    <hr> <!-- Divider line -->
-    {% endfor %}
-    </fieldset>
+    {% for form in multi_form.sales %}
+    {{ form.hidden_tag() }}
+    {{ form.csrf_token() }}
+    <!-- Add a hidden input field for the item ID -->
     <div class="form-group mb-1">
-      {{ multi_form.submit(class="btn btn-primary") }}
+      <p class="styled-text">{{ form.itemname.data }}</p>   
     </div>
-</div>
-<!-- Count Section -->
-<section id="counts" class="p-1 bg-steel">
-  {% for group in ordered_sales.items %}
-  <div class="content-section">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <legend class="border-bottom mb-0">{{ group.trans_date.strftime('%A-%m/%d') }}</legend>
-      <!-- Add button here -->
-      <a href="/sales/{{ group.trans_date }}/update" class="btn btn-primary btn-sm" style="width: 100px; height: 30px;">Edit</a>
+    <div>
+      {{ form.eachcount.label(value=form.eachcount.data) }}
+      {% if form.eachcount.errors %}
+      {{ form.eachcount(class="form-control-sm is-invalid", value=form.eachcount.data) }}
+      <div class="invalid-feedback">
+        {% for error in form.eachcount.errors %}
+        <span>{{ error }}</span>
+        {% endfor %}
+      </div>
+      {% else %}
+      {{ form.eachcount(value=form.eachcount.data) }}
+      {% endif %}
+      {{ form.waste.label(value=form.waste.data) }}:
+      {% if form.waste.errors %}
+      {{ form.waste(class="form-control-sm is-invalid", value=form.waste.data) }}
+      <div class="invalid-feedback">
+        {% for error in form.waste.errors %}
+        <span>{{ error }}</span>
+        {% endfor %}
+      </div>
+      {% else %}
+      {{ form.waste(value=form.waste.data) }}
+      {% endif %}
     </div>
-    {% for item in sales_list%}
-    {% if item.trans_date == group.trans_date  %}
-    <div class="media-body">
-      <a class="me-2" href="{{ url_for('counts_blueprint.update_sales', sales_id=item.id) }}">{{ item.item_name }}</a>
-      <small class="text-muted"> Total Sales  -  {{ item.each_count }} / Waste  -  {{ item.waste }}</small>
-    </div>
-    {% endif %}
+    <hr> <!-- Divider line -->
     {% endfor %}
+  </fieldset>
+  <div class="form-group mb-1">
+    {{ multi_form.submit(class="btn btn-primary") }}
   </div>
-  {% endfor %}
-</section>
-{% for page_num in ordered_sales.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
-{% if page_num %}
-{%if ordered_sales.page == page_num %}
-<a class="btn btn-info mb-4" href="{{ url_for('counts_blueprint.sales', page=page_num) }}">{{ page_num }}</a>
-{% else %}
-<a class="btn btn-outline-info mb-4" href="{{ url_for('counts_blueprint.sales', page=page_num) }}">{{ page_num }}</a>
-{% endif %}
-{% else %}
-...
-{% endif %}
-{% endfor %}
+</form>
+</div>
 {% endblock content %}
 
 

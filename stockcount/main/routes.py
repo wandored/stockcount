@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, cast, Integer
 
 from stockcount import db
 from stockcount.main import blueprint
-from stockcount.main.utils import set_user_access, execute_query, getVariance
+from stockcount.main.utils import set_user_access, execute_query, getVariance, getSirloinPurchases
 from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, StockcountPurchases, StockcountSales, StockcountWaste
 from stockcount.counts.forms import StoreForm
 
@@ -268,6 +268,10 @@ def report_details(product):
         .order_by(StockcountPurchases.date.desc())
     )
     
+    if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)":
+        sirloinPurchases = getSirloinPurchases(session["store"], monthly, end_date)
+        # ic(sirloinPurchases)
+        
     sales_list = (
         db.session.query(
             StockcountSales.date,
@@ -277,7 +281,7 @@ def report_details(product):
             StockcountSales.store == current_location.name,
             StockcountSales.ingredient == current_product.item_name,
             StockcountSales.date >= monthly,
-            StockcountSales.date <= end_date,
+            StockcountSales.date < end_date,
         )
         .group_by(StockcountSales.date)
         .order_by(StockcountSales.date.desc())
@@ -292,12 +296,23 @@ def report_details(product):
             StockcountWaste.store == current_location.name,
             StockcountWaste.item == current_product.item_name,
             StockcountWaste.date >= monthly,
-            StockcountWaste.date <= end_date,
+            StockcountWaste.date < end_date,
         )
         .group_by(StockcountWaste.date)
         .order_by(StockcountWaste.date.desc())
     )
-        
+    
+    # get end date's sales and waste from Inv_sales
+    sales_end = db.session.query(
+        InvSales.item_name,
+        InvSales.each_count,
+        InvSales.waste
+    ).filter(
+        InvSales.store_id == session["store"],
+        InvSales.item_id == product,
+        InvSales.trans_date == end_date
+    )
+            
     # Fetch all purchase, sales, and waste data upfront
     purchase_data = {purchase.date: int(purchase.unit_count) for purchase in purchase_list}
     sales_data = {sale.date: int(sale.sales_count) for sale in sales_list}
@@ -325,6 +340,18 @@ def report_details(product):
             "daily_variance": 0,
             "previous_total": previous_total if previous_total is not None else 0,
         }
+        
+        if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)":
+            for purchase in sirloinPurchases:
+                if purchase.date == count.trans_date:
+                    detail["purchase_count"] = int(purchase.unit_count)
+                    break
+        
+        # if its the last day, get the sales and waste from InvSales
+        if i == 0:
+            for sale in sales_end:
+                detail["sales_count"] = sale.each_count
+                detail["sales_waste"] = sale.waste
 
         # Calculate the theory and daily_variance
         detail["theory"] = detail["previous_total"] + detail["purchase_count"] - detail["sales_count"] - detail["sales_waste"]

@@ -20,7 +20,9 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients
+
+from sqlalchemy import func
 
 from icecream import ic
 from datetime import datetime
@@ -390,7 +392,7 @@ def delete_count(count_id):
 @blueprint.route("/sales/", methods=["GET", "POST"])
 @login_required
 def sales():
-    """Enter new sales for item"""
+    """Enter Todays Sales"""
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
 
     # crate list of daily sales
@@ -420,35 +422,57 @@ def sales():
         logging.error(f"User {current_user.email} attempted to sales items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
+        
+    # From recipe_ingredients, get a list of the actual menu items possible that match ingredients to the item_list above
+    menu_items = db.session.query(
+    RecipeIngredients.menu_item,
+    RecipeIngredients.ingredient,
+    InvItems.id
+    ).join(
+        InvItems,
+        RecipeIngredients.ingredient == InvItems.item_name
+    ).filter(
+        InvItems.store_id == session["store"]
+    ).distinct().all()
+        
+    # Get the date in format of mm-dd-yyyy
+    date = datetime.now().strftime("%m-%d-%Y")
 
-    multi_form = SalesForm(sales=item_list)
+    multi_form = SalesForm(sales=menu_items)
     index = 0
     for form in multi_form.sales:
-            form.itemname.data = item_list[index].item_name
-            form.item_id.data = item_list[index].id
+            form.itemname.data = menu_items[index].menu_item     
+            form.item_id.data = menu_items[index].id   
             index += 1
             
     del index
 
     if multi_form.validate_on_submit():
-        # Check if sales exists for same day and time
-        #for each sales entry, check if it already exists
+        # Condense the sales_entries by combinding the sales of the same item_id
+        sales_entries = {}
         for sales_entry in multi_form.sales.data:
+            if sales_entry["item_id"] in sales_entries:
+                sales_entries[sales_entry["item_id"]]["eachcount"] += sales_entry["eachcount"]
+                sales_entries[sales_entry["item_id"]]["waste"] += sales_entry["waste"]
+            else:
+                sales_entries[sales_entry["item_id"]] = sales_entry
+                sales_entries[sales_entry["item_id"]]["itemname"] = InvItems.query.filter_by(id=sales_entry["item_id"]).first().item_name
+                
+        # Check if sales exists for same day and time
+        # for each sales entry, check if it already exists
+        for sales_entry in sales_entries.values():
             double_sales = InvSales.query.filter_by(
                 item_id=sales_entry["item_id"],
-                trans_date=multi_form.transdate.data,
+                trans_date= datetime.now().strftime("%Y-%m-%d"),
             ).first()
-            ic(double_sales)
+            # delete sales if it already exists
             if double_sales is not None:
-                flash(
-                    f"{sales_entry['itemname']} already has a sales on {multi_form.transdate.data}, please enter a different date or edit the existing sales!",
-                    "warning",
-                )
-                logging.error(f"User {current_user.email} attempted to sales item {sales_entry['itemname']} that already has sales on {multi_form.transdate.data}")
-                return redirect(url_for("counts_blueprint.sales"))
+                db.session.delete(double_sales)
+                db.session.commit()
+            
         
-        for sales_entry in multi_form.sales.data:
-            ic(sales_entry.items())
+        for sales_entry in sales_entries.values():
+            # ic(sales_entry.items())
             sale_item = InvSales(
                 trans_date=multi_form.transdate.data,
                 item_name=sales_entry["itemname"],
