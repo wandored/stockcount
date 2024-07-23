@@ -21,7 +21,7 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients, MenuItems
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients
 
 from sqlalchemy import func
 
