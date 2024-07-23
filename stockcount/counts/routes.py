@@ -13,6 +13,7 @@ from stockcount.counts.forms import (
     PurchasesForm,
     SalesForm,
     NewItemForm,
+    NewMenuItemForm,
     StoreForm,
     UpdateCountForm,
     UpdateItemForm,
@@ -20,7 +21,7 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients, MenuItems
 
 from sqlalchemy import func
 
@@ -674,7 +675,14 @@ def new_item():
     print(session["store"])
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
+    menu_items = [
+    {'id': 1, 'item_name': 'Test 1'},
+    {'id': 2, 'item_name': 'Test 2'},
+    {'id': 3, 'item_name': 'Test 3'},
+    {'id': 4, 'item_name': 'Test 4'}
+    ]#MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
     form = NewItemForm()
+    menuItemForm = NewMenuItemForm()
     store_form = StoreForm()
 
     if store_form.storeform_submit.data and store_form.validate():

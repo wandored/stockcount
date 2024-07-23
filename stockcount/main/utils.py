@@ -1,6 +1,6 @@
 from flask_security import current_user
 
-from stockcount.models import Users, Restaurants, InvItems, Item
+from stockcount.models import Users, Restaurants, InvItems, Item, RecipeIngredients
 from flask import session
 from sqlalchemy import or_, and_
 
@@ -41,6 +41,18 @@ def stockcount_query():
             Item.name.like("%PREP Marination Sirloin%")
         )
     ).order_by(Item.name).all()
+
+def menu_item_query():
+    return db.session.query(
+    RecipeIngredients.menu_item,
+    RecipeIngredients.ingredient,
+    InvItems.id
+    ).join(
+        InvItems,
+        RecipeIngredients.ingredient == InvItems.item_name
+    ).filter(
+        InvItems.store_id == session["store"]
+    ).distinct().order_by(RecipeIngredients.menu_item).all()
 
 
 def item_query():

@@ -37,6 +37,30 @@
             </div>
     </form>
 </div>
+<div class="content-section">
+    <form method="POST" action="">
+        {{ menuItemForm.hidden_tag() }}
+        <fieldset id="" class="form-group mb-2">
+            <legend class="border-bottom mb-2"> Enter New Menu Item </legend>
+            <div class="form-group mb-1">
+                {{ menuItemForm.itemname.label(class="form=control-label") }}
+                {% if menuItemForm.itemname.errors %}
+                    {{ menuItemForm.itemname(class="form=control form-control-md is-invalid") }}
+                    <div class="invalid-feedback">
+                        {% for error in menuItemForm.itemname.errors %}
+                            <span>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ menuItemForm.itemname(class="form=control form-control-md") }}
+                {% endif %}
+            </div>
+        </fieldset>
+            <div class="form-group mb-1">
+                {{ menuItemForm.submit(class="btn btn-primary") }}
+            </div>
+    </form>
+</div>
 <!-- Count Section -->
 <section id="items" class="bg-steel">
 <div class="content-section">
@@ -49,5 +73,16 @@
     {% endfor %}
 </div>
 </section>
+
+<section id="Menu Items" class="bg-steel">
+    <div class="content-section">
+      <legend class="border-bottom mb-2">Menu Items - Select to edit</legend>
+        {% for item in menu_items %}
+          <div class="media-body">
+              <a class="me-2" href="{{ url_for('counts_blueprint.update_item', item_id=item.id) }}">{{ item.item_name }}</a>
+          </div>
+        {% endfor %}
+    </div>
+    </section>
 {% endblock content %}
 
