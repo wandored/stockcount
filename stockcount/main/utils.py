@@ -1,11 +1,19 @@
 from flask_security import current_user
 
-from stockcount.models import Users, Restaurants, InvItems, Item, RecipeIngredients
+from stockcount.models import Users, Restaurants, InvItems, Item, RecipeIngredients, MenuItems
 from flask import session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, not_
+from sqlalchemy.orm import joinedload
 
 from datetime import timedelta
 from stockcount import db
+
+from icecream import ic
+
+from collections import namedtuple
+
+# Define a named tuple to hold the query results
+MenuItemResult = namedtuple('MenuItemResult', ['menu_item', 'recipe', 'ingredient', 'id'])
 
 def set_user_access():
     store_list = Users.query.filter_by(id=current_user.id).first()
@@ -43,16 +51,62 @@ def stockcount_query():
     ).order_by(Item.name).all()
 
 def menu_item_query():
-    return db.session.query(
-    RecipeIngredients.menu_item,
-    RecipeIngredients.ingredient,
-    InvItems.id
+    # Subquery to get the menu_item values from the menu_items table
+    query = db.session.query(MenuItems.menu_item).filter(MenuItems.store_id == session["store"])
+
+    # Main query with exclusion
+    result = db.session.query(
+        RecipeIngredients.menu_item,
+        RecipeIngredients.recipe,
+        RecipeIngredients.ingredient,
+        InvItems.id
     ).join(
         InvItems,
         RecipeIngredients.ingredient == InvItems.item_name
     ).filter(
-        InvItems.store_id == session["store"]
-    ).distinct().order_by(RecipeIngredients.menu_item).all()
+        InvItems.store_id == session["store"],
+        not_(RecipeIngredients.menu_item.in_(query))  # Exclude rows where menu_item exists in the menu_items table
+    ).distinct().order_by(
+        RecipeIngredients.menu_item
+    ).all()
+    
+    # ic(result)
+    
+    # look for any null menu_items in result, store their recipe value
+    missing = []
+    for row in result:
+        if row[0] is None:
+            missing.append((row[1], row[2]))  # Use tuple instead of set
+            result.remove(row)  # Be cautious about modifying a list while iterating
+
+    # Output the missing items for debugging
+    # ic(missing)
+
+    # Query for each value in missing
+    for item in missing:
+        query_result = db.session.query(
+            RecipeIngredients.menu_item,
+            RecipeIngredients.recipe,
+            RecipeIngredients.ingredient,
+            InvItems.id
+        ).join(
+            InvItems, InvItems.item_name == item[1]  # Use item[1] for joining
+        ).filter(
+            RecipeIngredients.ingredient == item[0]  # Use item[0] for filtering
+        ).first()
+
+        if query_result:
+            # result.append(MenuItemResult(*query_result))
+            query_result = list(query_result)
+            query_result[2] = item[1]
+            result.append(MenuItemResult(*query_result))
+            # ic(query_result.menu_item, query_result.recipe, query_result.ingredient, query_result.id)
+                
+    # ic(result)
+    
+    return result
+
+        
 
 
 def item_query():

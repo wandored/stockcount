@@ -21,7 +21,8 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients, MenuItems
+from stockcount.main.utils import menu_item_query
 
 from sqlalchemy import func
 
@@ -424,17 +425,12 @@ def sales():
         return redirect(url_for("counts_blueprint.new_item")
         )
         
-    # From recipe_ingredients, get a list of the actual menu items possible that match ingredients to the item_list above
-    menu_items = db.session.query(
-    RecipeIngredients.menu_item,
-    RecipeIngredients.ingredient,
-    InvItems.id
-    ).join(
-        InvItems,
-        RecipeIngredients.ingredient == InvItems.item_name
-    ).filter(
-        InvItems.store_id == session["store"]
-    ).distinct().all()
+    menu_items = MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
+    if(menu_items == []):
+        flash("You must add menu items before you can count sales!", "warning")
+        logging.error(f"User {current_user.email} attempted to sales items without adding any menu items to inventory")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
         
     # Get the date in format of mm-dd-yyyy
     date = datetime.now().strftime("%m-%d-%Y")
@@ -443,7 +439,7 @@ def sales():
     index = 0
     for form in multi_form.sales:
             form.itemname.data = menu_items[index].menu_item     
-            form.item_id.data = menu_items[index].id   
+            form.item_id.data = menu_items[index].purchases_id   
             index += 1
             
     del index
@@ -675,12 +671,7 @@ def new_item():
     print(session["store"])
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
-    menu_items = [
-    {'id': 1, 'item_name': 'Test 1'},
-    {'id': 2, 'item_name': 'Test 2'},
-    {'id': 3, 'item_name': 'Test 3'},
-    {'id': 4, 'item_name': 'Test 4'}
-    ]#MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
+    menu_items = MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
     form = NewItemForm()
     menuItemForm = NewMenuItemForm()
     store_form = StoreForm()
@@ -704,7 +695,25 @@ def new_item():
             "success",
         )
         return redirect(url_for("counts_blueprint.new_item"))
-
+    elif menuItemForm.validate_on_submit():
+        # Menu_item_query to get the ingredient matching the menu item
+        result = menu_item_query()
+        for item in result:
+            if item[0] == menuItemForm.itemname.data.menu_item:
+                menu_item = MenuItems(
+                    menu_item=menuItemForm.itemname.data.menu_item,
+                    purchases_name=item[2],
+                    purchases_id=item[3],
+                    store_id=session["store"],
+                )
+                # ic(menu_item.id, menu_item.menu_item, menu_item.purchases_name, menu_item.purchases_id, menu_item.store_id)
+                db.session.add(menu_item)
+                db.session.commit()
+                flash(
+                    f"{menuItemForm.itemname.data.menu_item} has been added to your menu items list!",
+                    "success",
+                )
+                return redirect(url_for("counts_blueprint.new_item"))                
     return render_template(
         "counts/new_item.html",
         title="New Inventory Item",
@@ -759,9 +768,10 @@ def delete_item(item_id):
     counts = InvCount.query.filter_by(item_id=item.id).all()
     purchases = InvPurchases.query.filter_by(item_id=item.id).all()
     sales = InvSales.query.filter_by(item_id=item.id).all()
+    menu_items = MenuItems.query.filter_by(purchases_id=item.id, store_id=session["store"]).all()
     store_form = StoreForm()
     
-    ic(item.id, session["store"], counts)
+    ic(item.id, session["store"], counts, menu_items)
 
     if store_form.storeform_submit.data and store_form.validate():
         data = store_form.stores.data
@@ -781,9 +791,24 @@ def delete_item(item_id):
         for sale in sales:
             db.session.delete(sale)
             
+    if menu_items is not None:
+        for menu_item in menu_items:
+            db.session.delete(menu_item)
+
         db.session.commit()
 
     db.session.delete(item)
     db.session.commit()
     flash("Product has been 86'd!", "success")
+    return redirect(url_for("counts_blueprint.new_item"))
+
+@blueprint.route("/menuitem/<int:id>/delete", methods=["POST"])
+@login_required
+def delete_menu_item(id):
+    """Delete current menu items"""
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    menu_item = MenuItems.query.get_or_404(id)
+    db.session.delete(menu_item)
+    db.session.commit()
+    flash("Menu item has been removed!", "success")
     return redirect(url_for("counts_blueprint.new_item"))

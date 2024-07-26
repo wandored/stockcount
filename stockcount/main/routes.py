@@ -62,8 +62,11 @@ def report():
     # start timer
     start = time.time()
     ordered_counts = getVariance(session["store"], today)
+    sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
+    ic(ordered_counts)
     end = time.time()
     ic(f"Time to getVariance: {end - start}")
+    ic(sirloin_purchases)    
     
     return render_template(
         "main/report.html",

@@ -284,3 +284,12 @@ class RecipeIngredients(db.Model):
     uofm = db.Column(db.String)
     
     __table_args__ = (PrimaryKeyConstraint('menu_item', 'recipe', 'ingredient'),)
+
+class MenuItems(db.Model):
+    __tablename__ = "inv_menu_items"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    menu_item = db.Column(db.String)
+    purchases_name = db.Column(db.String)
+    purchases_id = db.Column(db.Integer)
+    store_id = db.Column(db.Integer)

@@ -37,6 +37,18 @@
             </div>
     </form>
 </div>
+<!-- Count Section -->
+<section id="items" class="bg-steel">
+<div class="content-section">
+  <legend class="border-bottom mb-2">Inventory Items - Select to edit</legend>
+    {% for item in inv_items %}
+      <div class="media-body">
+          <a class="me-2" href="{{ url_for('counts_blueprint.update_item', item_id=item.id) }}">{{ item.item_name }}</a>
+          <small class="text-muted">{{ item.case_pack }} per Case</small>
+      </div>
+    {% endfor %}
+</div>
+</section>
 <div class="content-section">
     <form method="POST" action="">
         {{ menuItemForm.hidden_tag() }}
@@ -61,28 +73,39 @@
             </div>
     </form>
 </div>
-<!-- Count Section -->
-<section id="items" class="bg-steel">
-<div class="content-section">
-  <legend class="border-bottom mb-2">Inventory Items - Select to edit</legend>
-    {% for item in inv_items %}
-      <div class="media-body">
-          <a class="me-2" href="{{ url_for('counts_blueprint.update_item', item_id=item.id) }}">{{ item.item_name }}</a>
-          <small class="text-muted">{{ item.case_pack }} per Case</small>
+<section id="Menu Items" class="bg-steel">
+    <div class="content-section">
+      <legend class="border-bottom mb-2">Menu Items - Select to Delete</legend>
+      {% for item in menu_items %}        
+          <div class="media-body">
+            <div class="form-group">
+                <span  style="font-size: 1.5rem;">{{ item.menu_item }}</span>
+                <button type="button" class="btn btn-danger btn-sm m-2" data-bs-toggle="modal" data-bs-target="#deleteModal">Delete</button>
+            </div>
+    </form>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">86 Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-    {% endfor %}
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+        <form action="{{ url_for('counts_blueprint.delete_menu_item', id=item.id) }}" method="POST">
+            {{ form.csrf_token() }}
+            <input class="btn btn-danger" type="submit" value="Delete">
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 </div>
 </section>
 
-<section id="Menu Items" class="bg-steel">
-    <div class="content-section">
-      <legend class="border-bottom mb-2">Menu Items - Select to edit</legend>
-        {% for item in menu_items %}
-          <div class="media-body">
-              <a class="me-2" href="{{ url_for('counts_blueprint.update_item', item_id=item.id) }}">{{ item.item_name }}</a>
-          </div>
-        {% endfor %}
-    </div>
-    </section>
 {% endblock content %}
 
