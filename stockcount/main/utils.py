@@ -52,9 +52,10 @@ def stockcount_query():
 
 def menu_item_query():
     # Subquery to get the menu_item values from the menu_items table
-    query = db.session.query(MenuItems.menu_item).filter(MenuItems.store_id == session["store"])
+    menu_items_query = db.session.query(MenuItems.menu_item).filter(MenuItems.store_id == session["store"])
+    excluded_menu_items = [item[0] for item in menu_items_query.all()]
 
-    # Main query with exclusion
+    # Main query with improved exclusion to include None values
     result = db.session.query(
         RecipeIngredients.menu_item,
         RecipeIngredients.recipe,
@@ -65,7 +66,10 @@ def menu_item_query():
         RecipeIngredients.ingredient == InvItems.item_name
     ).filter(
         InvItems.store_id == session["store"],
-        not_(RecipeIngredients.menu_item.in_(query))  # Exclude rows where menu_item exists in the menu_items table
+        or_(
+            RecipeIngredients.menu_item.notin_(excluded_menu_items),
+            RecipeIngredients.menu_item == None
+        )
     ).distinct().order_by(
         RecipeIngredients.menu_item
     ).all()
