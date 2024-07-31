@@ -253,7 +253,7 @@ def report_details(product):
             InvCount.trans_date <= end_date,
         )
         .order_by(InvCount.trans_date.desc())
-        .limit(6)
+        .limit(7)
     )
     
     purchase_list = (
@@ -271,9 +271,9 @@ def report_details(product):
         .order_by(StockcountPurchases.date.desc())
     )
     
-    if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)":
+    if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)" or current_product.item_name == "BEEF Steak 10oz Sirloin Choice":
         sirloinPurchases = getSirloinPurchases(session["store"], monthly, end_date)
-        # ic(sirloinPurchases)
+        ic(sirloinPurchases)
         
     sales_list = (
         db.session.query(

@@ -250,9 +250,7 @@ class StockcountSales(db.Model):
     menuitem = db.Column(db.String)
     sales_count = db.Column(db.Float)
     ingredient = db.Column(db.String)
-    concept = db.Column(db.String)
-    base_usage = db.Column(db.Float)
-    base_uofm = db.Column(db.String)
+
     
     __table_args__ = (PrimaryKeyConstraint('date', 'store', 'menuitem', name='unique_sales'),)
     

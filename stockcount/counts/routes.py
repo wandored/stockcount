@@ -706,7 +706,7 @@ def new_item():
                     purchases_id=item[3],
                     store_id=session["store"],
                 )
-                # ic(menu_item.id, menu_item.menu_item, menu_item.purchases_name, menu_item.purchases_id, menu_item.store_id)
+                ic(menu_item.id, menu_item.menu_item, menu_item.purchases_name, menu_item.purchases_id, menu_item.store_id)
                 db.session.add(menu_item)
                 db.session.commit()
                 flash(
