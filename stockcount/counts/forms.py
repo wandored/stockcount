@@ -16,7 +16,7 @@ from wtforms.fields import DateField
 from wtforms.validators import DataRequired
 from wtforms_sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField
 
-from stockcount.main.utils import store_query, stockcount_query
+from stockcount.main.utils import store_query, stockcount_query, menu_item_query
 
 
 class MultiCheckboxField(QuerySelectMultipleField):
@@ -42,6 +42,16 @@ class NewItemForm(FlaskForm):
         get_pk=lambda x: x.name,
     )
     casepack = IntegerField("# per Case: ", validators=[DataRequired()])
+    submit = SubmitField("Submit")
+    
+class NewMenuItemForm(FlaskForm):
+    itemname = QuerySelectField(
+        "Select Item: ",
+        query_factory=menu_item_query,
+        allow_blank=False,
+        get_label="menu_item",
+        get_pk=lambda x: x.menu_item,
+    )
     submit = SubmitField("Submit")
 
 
