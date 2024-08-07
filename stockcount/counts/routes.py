@@ -779,17 +779,17 @@ def delete_item(item_id):
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.new_item"))
 
-    if counts is not None:
-        for count in counts:
-            db.session.delete(count)
+    # if counts is not None:
+    #     for count in counts:
+    #         db.session.delete(count)
     
-    if purchases is not None:
-        for purchase in purchases:
-            db.session.delete(purchase)
+    # if purchases is not None:
+    #     for purchase in purchases:
+    #         db.session.delete(purchase)
             
-    if sales is not None:
-        for sale in sales:
-            db.session.delete(sale)
+    # if sales is not None:
+    #     for sale in sales:
+    #         db.session.delete(sale)
             
     if menu_items is not None:
         for menu_item in menu_items:
