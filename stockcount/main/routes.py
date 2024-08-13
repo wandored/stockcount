@@ -284,7 +284,7 @@ def report_details(product):
             StockcountSales.store == current_location.name,
             StockcountSales.ingredient == current_product.item_name,
             StockcountSales.date >= monthly,
-            StockcountSales.date < end_date,
+            StockcountSales.date <= end_date,
         )
         .group_by(StockcountSales.date)
         .order_by(StockcountSales.date.desc())
