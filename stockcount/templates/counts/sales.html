@@ -15,8 +15,16 @@
   <form method="POST" action="">
     {{ multi_form.hidden_tag() }}
     <fieldset id="" class="form-group mb-2">
-      <legend class="border-bottom mb-2">Enter Sales for {{ date }}</legend>
+      <legend class="border-bottom mb-2">Enter Sales</legend>
     <hr> <!-- Divider line -->
+        <div class="form-group mb-2">
+      <!-- Dropdown Menu -->
+      <label for="date_filter">Select Date:</label>
+      <select id="date_filter" name="date_filter" class="form-control custom-dropdown" style="width: 150px;">
+        <option value="today" selected>{{ today }}</option>
+        <option value="yesterday">{{ yesterday }}</option>
+      </select>
+    </div>
     {% for form in multi_form.sales %}
     {{ form.hidden_tag() }}
     {{ form.csrf_token() }}

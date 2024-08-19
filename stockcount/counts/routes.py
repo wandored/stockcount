@@ -27,7 +27,7 @@ from stockcount.main.utils import menu_item_query
 from sqlalchemy import func
 
 from icecream import ic
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import logging
 
@@ -433,8 +433,9 @@ def sales():
         )
         
     # Get the date in format of mm-dd-yyyy
-    date = datetime.now().strftime("%m-%d-%Y")
-
+    today = datetime.now().strftime("%B %d, %Y")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%B %d, %Y")
+    
     multi_form = SalesForm(sales=menu_items)
     index = 0
     for form in multi_form.sales:
@@ -466,12 +467,19 @@ def sales():
             if double_sales is not None:
                 db.session.delete(double_sales)
                 db.session.commit()
-            
+        
+        date_filter = request.form.get('date_filter')
+        if date_filter == 'today':
+            date = datetime.now().strftime("%Y-%m-%d")
+        elif date_filter == 'yesterday':
+            date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            date = None
         
         for sales_entry in sales_entries.values():
             # ic(sales_entry.items())
             sale_item = InvSales(
-                trans_date=multi_form.transdate.data,
+                trans_date=date,
                 item_name=sales_entry["itemname"],
                 each_count=sales_entry["eachcount"],
                 waste=sales_entry["waste"],
