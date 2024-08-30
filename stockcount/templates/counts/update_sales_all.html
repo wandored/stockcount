@@ -34,7 +34,7 @@
         {% else %}
         {{ form.eachcount(value=form.eachcount.data) }}
         {% endif %}
-        {{ form.waste.label(value=form.waste.data) }}
+        {{ form.waste.label(value=form.waste.data) }}:
         {% if form.waste.errors %}
         {{ form.waste(class="form-control-sm is-invalid", value=form.waste.data) }}
         <div class="invalid-feedback">

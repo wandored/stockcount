@@ -13,6 +13,7 @@ from stockcount.counts.forms import (
     PurchasesForm,
     SalesForm,
     NewItemForm,
+    NewMenuItemForm,
     StoreForm,
     UpdateCountForm,
     UpdateItemForm,
@@ -20,10 +21,13 @@ from stockcount.counts.forms import (
     UpdateSalesForm,
 )
 from stockcount.counts.utils import calculate_totals
-from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants
+from stockcount.models import InvCount, InvItems, InvPurchases, InvSales, Restaurants, RecipeIngredients, MenuItems
+from stockcount.main.utils import menu_item_query
+
+from sqlalchemy import func
 
 from icecream import ic
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import logging
 
@@ -387,272 +391,10 @@ def delete_count(count_id):
     flash("Item counts have been deleted!", "success")
     return redirect(url_for("counts_blueprint.count"))
 
-
-@blueprint.route("/purchases/", methods=["GET", "POST"])
-@login_required
-def purchases():
-    """Enter new purchases"""
-    current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    
-    page = request.args.get("page", 1, type=int)
-    purchase_items = InvPurchases.query.filter(InvPurchases.store_id == session["store"]).all()
-    purchase_dates = (
-        db.session.query(InvPurchases.trans_date)
-        .filter_by(store_id=session["store"])
-        .group_by(InvPurchases.trans_date)
-    )
-    ordered_purchases = purchase_dates.order_by(InvPurchases.trans_date.desc()).paginate(
-        page=page, per_page=10
-    )
-
-    store_form = StoreForm()
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("counts_blueprint.purchases"))
-
-    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
-    if(item_list == []):
-        flash("You must add items to your inventory before you can count them!", "warning")
-        logging.error(f"User {current_user.email} attempted to purchase items without adding any items to inventory")
-        return redirect(url_for("counts_blueprint.new_item")
-        )
-    
-    multi_form = PurchasesForm(purchases=item_list)
-    index = 0
-    for form in multi_form.purchases:
-        form.itemname.data = item_list[index].item_name
-        form.item_id.data = item_list[index].id
-        index += 1
-        
-    del index
-    
-    if multi_form.validate_on_submit():
-        # Check if sales exists for same day and time
-        #for each sales entry, check if it already exists
-        for purchase_entry in multi_form.purchases.data:
-            double_purchase = InvPurchases.query.filter_by(
-                item_id=purchase_entry["item_id"],
-                trans_date=multi_form.transdate.data,
-            ).first()
-            ic(double_purchase)
-            if double_purchase is not None:
-                flash(
-                    f"{purchase_entry['itemname']} already has a purchase on {multi_form.transdate.data}, please enter a different date or edit the existing purchase!",
-                    "warning",
-                )
-                logging.error(f"User {current_user.email} attempted to purchase item {purchase_entry['itemname']} that already has a purchase on {multi_form.transdate.data}")
-                return redirect(url_for("counts_blueprint.purchases"))
-        
-        for purchase_entry in multi_form.purchases.data:
-            items_object = InvItems.query.filter_by(id=purchase_entry["item_id"]).first()
-            ic(items_object.case_pack)
-            purchase_item = InvPurchases(
-                trans_date=multi_form.transdate.data,
-                item_name=purchase_entry["itemname"],
-                case_count=purchase_entry["casecount"],
-                each_count=purchase_entry["eachcount"],
-                purchase_total=(
-                    items_object.case_pack * purchase_entry["casecount"] + purchase_entry["eachcount"]
-                ),
-                item_id=purchase_entry["item_id"],
-                store_id=session["store"],
-            )
-            
-            db.session.add(purchase_item)
-        db.session.commit()
-        # flash(
-        #         f"Sales of {sales_form.eachcount.data + sales_form.waste.data} {sales_form.itemname.data.item_name} submitted on {multi_form.transdate.data}!",
-        #         "success",
-        #         )
-        items_object = InvItems.query.filter_by(id=purchase_entry['item_id']).all()
-        for item in items_object:
-            calculate_totals(item.id)
-        return redirect(url_for("counts_blueprint.purchases"))
-    return render_template(
-        "counts/purchases.html",
-        title="Purchases",
-        **locals(),
-    )
-
-
-@blueprint.route("/purchases/<int:purchase_id>/update", methods=["GET", "POST"])
-@login_required
-def update_purchases(purchase_id):
-    current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    item = InvPurchases.query.get_or_404(purchase_id)
-    if not item.item_id:
-        flash(f"{item.item_name} is not an active product!", "warning")
-        logging.error(f"User {current_user.email} attempted to update purchase for inactive item {item.item_name}")
-        return redirect(url_for("counts_blueprint.purchases"))
-    inv_items = InvPurchases.query.filter(
-        InvPurchases.store_id == session["store"]
-    ).all()
-
-    store_form = StoreForm()
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("counts_blueprint.purchases"))
-
-    form = UpdatePurchasesForm()
-    if form.validate_on_submit():
-        items_object = InvItems.query.filter_by(id=form.item_id.data).first()
-        item.trans_date = form.transdate.data
-        item.item_name = form.itemname.data
-        item.case_count = form.casecount.data
-        item.each_count = form.eachcount.data
-        item.purchase_total = (
-            items_object.case_pack * form.casecount.data + form.eachcount.data
-        )
-        db.session.commit()
-        flash("Item purchases have been updated!", "success")
-        calculate_totals(items_object.id)
-        return redirect(url_for("counts_blueprint.purchases"))
-    elif request.method == "GET":
-        form.transdate.data = item.trans_date
-        form.itemname.data = item.item_name
-        form.casecount.data = item.case_count
-        form.eachcount.data = item.each_count
-        form.item_id.data = item.item_id
-    return render_template(
-        "counts/update_purchases.html",
-        title="Update Item Purchases",
-        legend="Update Purchases",
-        **locals(),
-    )
-
-@blueprint.route("/purchases/<string:purchase_date>/update", methods=["GET", "POST"])
-@login_required
-def update_purchase_all(purchase_date):
-    """Update purchase items"""
-    current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    # Check if date exists in purchase
-    # make sure purchase-date is in the format of dd-mm-yyyy
-    purchase_date = datetime.strptime(purchase_date, "%Y-%m-%d")
-        
-    store_form = StoreForm()
-    if store_form.storeform_submit.data and store_form.validate():
-        # session["date_selected"] = fiscal_dates["start_day"]
-        data = store_form.stores.data
-        for x in data:
-            session["store"] = x.id
-        return redirect(url_for("purchases_blueprint.purchase"))
-    
-    if purchase_date is None:
-        flash("No purchase for that date!", "warning")
-        logging.error(f"User {current_user.email} attempted to update purchase for non-existent date {purchase_date}")
-        return redirect(url_for("purchases_blueprint.purchase"))
-    
-    # Get a list of all the items for the restaurant
-    item_list = db.session.query(InvItems.id, InvItems.item_name).filter(InvItems.store_id == session["store"]).all()
-    if(item_list == []):
-        flash("You must add items to your inventory before you can purchase them!", "warning")
-        logging.error(f"User {current_user.email} attempted to purchase items without adding any items to inventory")
-        return redirect(url_for("purchases_blueprint.new_item")
-        )
-        
-    # ic(item_list)
-        
-    # Get the purchase for the selected date
-    purchases = InvPurchases.query.filter(
-        InvPurchases.store_id == session["store"],
-        InvPurchases.trans_date == purchase_date,
-    ).all()
-        
-    # ic(purchases)
-        
-    # Create a form for the purchase based off the item_list
-    multi_form = PurchasesForm(purchases=item_list)
-    
-    # ic(multi_form.purchases.data)
-        
-    if multi_form.validate_on_submit():        
-        # Submit purchase update for each item
-        for purchase_entry in multi_form.purchases.data:
-            # First Update exisiting purchase
-            purchase = InvPurchases.query.filter(
-                InvPurchases.store_id == session["store"],
-                InvPurchases.trans_date == multi_form.transdate.data,
-            ).all()
-            
-            # Check if purchase exists for same day and time 
-            exisiting_item = InvPurchases.query.filter_by(
-                item_id=purchase_entry["item_id"],
-                trans_date=purchase_date,
-            ).first()
-            
-            if exisiting_item is not None:
-                # if not new data, skip
-                if exisiting_item.each_count == purchase_entry["eachcount"] and exisiting_item.case_count == purchase_entry["casecount"]:
-                    # print("No changes for: ", purchase_entry["itemname"])
-                    continue
-                # print("Updating purchase for existing item: ", purchase_entry["itemname"])
-                exisiting_item.each_count = purchase_entry["eachcount"]
-                exisiting_item.case_count = purchase_entry["casecount"]
-                exisiting_item.purchase_total = (purchase_entry["eachcount"] + purchase_entry["casecount"])
-                db.session.commit()
-                continue
-                
-            # Secondly add new purchase
-            # For items in item_list that are not in purchase
-            if purchase_entry["item_id"] not in [purchase.item_id for purchase in purchase]:
-                # print("Updating purchase for new item: ", purchase_entry["itemname"])
-                purchase_item = InvPurchases(
-                    trans_date=purchase_date,
-                    item_name=purchase_entry["itemname"],
-                    each_count=purchase_entry["eachcount"],
-                    case_count=purchase_entry["casecount"],
-                    purchase_total=(purchase_entry["eachcount"] + purchase_entry["casecount"]),
-                    item_id=purchase_entry["item_id"],
-                    store_id=session["store"],
-                )
-                db.session.add(purchase_item)
-                db.session.commit()
-                # ic(purchase_item)
-        flash("purchases have been updated!", "success")
-        return redirect(url_for("counts_blueprint.purchases"))
-    elif request.method == "GET":
-        multi_form.transdate.data = purchase_date
-        index = 0
-        for item in item_list:
-            multi_form.purchases[index].itemname.data = item.item_name
-            multi_form.purchases[index].item_id.data = item.id
-            for purchase in purchases:
-                if item.id == purchase.item_id:
-                    multi_form.purchases[index].eachcount.data = purchase.each_count
-                    multi_form.purchases[index].casecount.data = purchase.case_count
-            index += 1
-        del index, item
-        
-    return render_template(
-        "counts/update_purchases_all.html",
-        title="Update purchase",
-        legend="Update purchase",
-        **locals(),
-    )
-
-@blueprint.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
-@login_required
-def delete_purchases(purchase_id):
-    current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    item = InvPurchases.query.get_or_404(purchase_id)
-    unit = InvItems.query.filter_by(id=item.item_id).first()
-    db.session.delete(item)
-    db.session.commit()
-    flash("Item purchases have been deleted!", "success")
-    calculate_totals(unit.id)
-    return redirect(url_for("counts_blueprint.purchases"))
-
-
 @blueprint.route("/sales/", methods=["GET", "POST"])
 @login_required
 def sales():
-    """Enter new sales for item"""
+    """Enter Todays Sales"""
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
 
     # crate list of daily sales
@@ -682,37 +424,62 @@ def sales():
         logging.error(f"User {current_user.email} attempted to sales items without adding any items to inventory")
         return redirect(url_for("counts_blueprint.new_item")
         )
-
-    multi_form = SalesForm(sales=item_list)
+        
+    menu_items = MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
+    if(menu_items == []):
+        flash("You must add menu items before you can count sales!", "warning")
+        logging.error(f"User {current_user.email} attempted to sales items without adding any menu items to inventory")
+        return redirect(url_for("counts_blueprint.new_item")
+        )
+        
+    # Get the date in format of mm-dd-yyyy
+    today = datetime.now().strftime("%B %d, %Y")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%B %d, %Y")
+    
+    multi_form = SalesForm(sales=menu_items)
     index = 0
     for form in multi_form.sales:
-            form.itemname.data = item_list[index].item_name
-            form.item_id.data = item_list[index].id
+            form.itemname.data = menu_items[index].menu_item     
+            form.item_id.data = menu_items[index].purchases_id   
             index += 1
             
     del index
 
     if multi_form.validate_on_submit():
-        # Check if sales exists for same day and time
-        #for each sales entry, check if it already exists
+        # Condense the sales_entries by combinding the sales of the same item_id
+        sales_entries = {}
         for sales_entry in multi_form.sales.data:
+            if sales_entry["item_id"] in sales_entries:
+                sales_entries[sales_entry["item_id"]]["eachcount"] += sales_entry["eachcount"]
+                sales_entries[sales_entry["item_id"]]["waste"] += sales_entry["waste"]
+            else:
+                sales_entries[sales_entry["item_id"]] = sales_entry
+                sales_entries[sales_entry["item_id"]]["itemname"] = InvItems.query.filter_by(id=sales_entry["item_id"]).first().item_name
+                
+        # Check if sales exists for same day and time
+        # for each sales entry, check if it already exists
+        for sales_entry in sales_entries.values():
             double_sales = InvSales.query.filter_by(
                 item_id=sales_entry["item_id"],
-                trans_date=multi_form.transdate.data,
+                trans_date= datetime.now().strftime("%Y-%m-%d"),
             ).first()
-            ic(double_sales)
+            # delete sales if it already exists
             if double_sales is not None:
-                flash(
-                    f"{sales_entry['itemname']} already has a sales on {multi_form.transdate.data}, please enter a different date or edit the existing sales!",
-                    "warning",
-                )
-                logging.error(f"User {current_user.email} attempted to sales item {sales_entry['itemname']} that already has sales on {multi_form.transdate.data}")
-                return redirect(url_for("counts_blueprint.sales"))
+                db.session.delete(double_sales)
+                db.session.commit()
         
-        for sales_entry in multi_form.sales.data:
-            ic(sales_entry.items())
+        date_filter = request.form.get('date_filter')
+        if date_filter == 'today':
+            date = datetime.now().strftime("%Y-%m-%d")
+        elif date_filter == 'yesterday':
+            date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            date = None
+        
+        for sales_entry in sales_entries.values():
+            # ic(sales_entry.items())
             sale_item = InvSales(
-                trans_date=multi_form.transdate.data,
+                trans_date=date,
                 item_name=sales_entry["itemname"],
                 each_count=sales_entry["eachcount"],
                 waste=sales_entry["waste"],
@@ -912,7 +679,9 @@ def new_item():
     print(session["store"])
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     inv_items = InvItems.query.filter(InvItems.store_id == session["store"]).all()
+    menu_items = MenuItems.query.filter(MenuItems.store_id == session["store"]).all()
     form = NewItemForm()
+    menuItemForm = NewMenuItemForm()
     store_form = StoreForm()
 
     if store_form.storeform_submit.data and store_form.validate():
@@ -934,7 +703,25 @@ def new_item():
             "success",
         )
         return redirect(url_for("counts_blueprint.new_item"))
-
+    elif menuItemForm.validate_on_submit():
+        # Menu_item_query to get the ingredient matching the menu item
+        result = menu_item_query()
+        for item in result:
+            if item[0] == menuItemForm.itemname.data.menu_item:
+                menu_item = MenuItems(
+                    menu_item=menuItemForm.itemname.data.menu_item,
+                    purchases_name=item[2],
+                    purchases_id=item[3],
+                    store_id=session["store"],
+                )
+                ic(menu_item.id, menu_item.menu_item, menu_item.purchases_name, menu_item.purchases_id, menu_item.store_id)
+                db.session.add(menu_item)
+                db.session.commit()
+                flash(
+                    f"{menuItemForm.itemname.data.menu_item} has been added to your menu items list!",
+                    "success",
+                )
+                return redirect(url_for("counts_blueprint.new_item"))                
     return render_template(
         "counts/new_item.html",
         title="New Inventory Item",
@@ -989,9 +776,10 @@ def delete_item(item_id):
     counts = InvCount.query.filter_by(item_id=item.id).all()
     purchases = InvPurchases.query.filter_by(item_id=item.id).all()
     sales = InvSales.query.filter_by(item_id=item.id).all()
+    menu_items = MenuItems.query.filter_by(purchases_id=item.id, store_id=session["store"]).all()
     store_form = StoreForm()
     
-    ic(item.id, session["store"], counts)
+    ic(item.id, session["store"], counts, menu_items)
 
     if store_form.storeform_submit.data and store_form.validate():
         data = store_form.stores.data
@@ -999,21 +787,36 @@ def delete_item(item_id):
             session["store"] = x.id
         return redirect(url_for("counts_blueprint.new_item"))
 
-    if counts is not None:
-        for count in counts:
-            db.session.delete(count)
+    # if counts is not None:
+    #     for count in counts:
+    #         db.session.delete(count)
     
-    if purchases is not None:
-        for purchase in purchases:
-            db.session.delete(purchase)
+    # if purchases is not None:
+    #     for purchase in purchases:
+    #         db.session.delete(purchase)
             
-    if sales is not None:
-        for sale in sales:
-            db.session.delete(sale)
+    # if sales is not None:
+    #     for sale in sales:
+    #         db.session.delete(sale)
             
+    if menu_items is not None:
+        for menu_item in menu_items:
+            db.session.delete(menu_item)
+
         db.session.commit()
 
     db.session.delete(item)
     db.session.commit()
     flash("Product has been 86'd!", "success")
+    return redirect(url_for("counts_blueprint.new_item"))
+
+@blueprint.route("/menuitem/<int:id>/delete", methods=["POST"])
+@login_required
+def delete_menu_item(id):
+    """Delete current menu items"""
+    current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    menu_item = MenuItems.query.get_or_404(id)
+    db.session.delete(menu_item)
+    db.session.commit()
+    flash("Menu item has been removed!", "success")
     return redirect(url_for("counts_blueprint.new_item"))
