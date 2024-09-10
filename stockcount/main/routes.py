@@ -63,10 +63,10 @@ def report():
     start = time.time()
     ordered_counts = getVariance(session["store"], today)
     sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
-    ic(ordered_counts)
+    # ic(ordered_counts)
     end = time.time()
-    ic(f"Time to getVariance: {end - start}")
-    ic(sirloin_purchases)    
+    # ic(f"Time to getVariance: {end - start}")
+    # ic(sirloin_purchases)    
     
     return render_template(
         "main/report.html",
@@ -119,8 +119,8 @@ def report_details(product):
         .first()
     )
     sales_weekly = db.session.query(
-        func.sum(cast(StockcountSales.sales_count, Integer)).label("total"),
-        func.avg(cast(StockcountSales.sales_count, Integer)).label("sales_avg"),
+        func.sum(cast(StockcountSales.count_usage, Integer)).label("total"),
+        func.avg(cast(StockcountSales.count_usage, Integer)).label("sales_avg"),
     ).filter(
         StockcountSales.store == current_location.name,
         StockcountSales.ingredient == current_product.item_name,
@@ -153,7 +153,7 @@ def report_details(product):
     
     # end timer
     end = time.time()
-    ic(f"Box Time: {end - start}")
+    # ic(f"Box Time: {end - start}")
     total_time += end - start
     start = time.time()
 
@@ -177,7 +177,7 @@ def report_details(product):
         unit_onhand.append(i.count_total)
         sales_list = (
             db.session.query(
-            func.sum(StockcountSales.sales_count).label("total")
+            func.sum(StockcountSales.count_usage).label("total")
             ).filter(
                 StockcountSales.date == i.trans_date,
                 StockcountSales.store == current_location.name,
@@ -189,7 +189,7 @@ def report_details(product):
    
    # end time
     end = time.time()
-    ic(f"Chart 1 Time: {end - start}")
+    # ic(f"Chart 1 Time: {end - start}")
     total_time += end - start
     start = time.time()
 
@@ -235,7 +235,7 @@ def report_details(product):
         
     # end time
     end = time.time()
-    ic(f"Chart 2 Time: {end - start}")
+    # ic(f"Chart 2 Time: {end - start}")
     total_time += end - start
     start = time.time()
 
@@ -273,12 +273,12 @@ def report_details(product):
     
     if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)" or current_product.item_name == "BEEF Steak 10oz Sirloin Choice":
         sirloinPurchases = getSirloinPurchases(session["store"], monthly, end_date)
-        ic(sirloinPurchases)
+        # ic(sirloinPurchases)
         
     sales_list = (
         db.session.query(
             StockcountSales.date,
-            func.sum(cast(StockcountSales.sales_count, Integer)).label("sales_count")
+            func.sum(cast(StockcountSales.count_usage, Integer)).label("sales_count")
         )
         .filter(
             StockcountSales.store == current_location.name,
@@ -365,9 +365,9 @@ def report_details(product):
 
     # end time
     end = time.time()
-    ic(f"Table Time: {end - start}")
+    # ic(f"Table Time: {end - start}")
     total_time += end - start
-    ic(f"Total Time: {total_time}")
+    # ic(f"Total Time: {total_time}")
     start = time.time()
         
     item_name = db.session.query(InvItems).filter(InvItems.id == product).first()
