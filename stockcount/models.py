@@ -246,10 +246,15 @@ class StockcountSales(db.Model):
     week = db.Column(db.Integer)
     period = db.Column(db.Integer)
     year = db.Column(db.Integer)
+    store_id = db.Column(db.Integer)
     store = db.Column(db.String)
     menuitem = db.Column(db.String)
     sales_count = db.Column(db.Float)
     ingredient = db.Column(db.String)
+    concept = db.Column(db.String)
+    base_usage = db.Column(db.Float)
+    base_uofm = db.Column(db.String)
+    count_usage = db.Column(db.Float)
 
     
     __table_args__ = (PrimaryKeyConstraint('date', 'store', 'menuitem', name='unique_sales'),)
