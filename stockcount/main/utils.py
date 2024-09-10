@@ -137,7 +137,7 @@ def getSirloinPurchases(store_id, start_date, end_date):
     return results
 
 
-def getVariance(store_id, date):
+def getVariance(store_id, date, prev_date):
     query = """
     WITH current_day AS (
         SELECT item_id, item_name, count_total
@@ -187,7 +187,7 @@ def getVariance(store_id, date):
     params = {
         'store_id': store_id,
         'trans_date': date,
-        'previous_date': date - timedelta(days=1),  # Provide the correct date for previous_day query
+        'previous_date': prev_date,  # Provide the correct date for previous_day query
         'sales_date': date,
         'purchase_date': date,
         'waste_date': date

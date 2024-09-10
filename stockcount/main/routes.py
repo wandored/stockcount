@@ -58,10 +58,22 @@ def report():
     today = date_time.trans_date.strftime("%Y-%m-%d")
     today = datetime.strptime(today, "%Y-%m-%d")
     yesterday = today - timedelta(days=1)    
-
-    # start timer
+    
+    # Get the date of the 2nd most recent count.
+    prev_date = (
+        db.session.query(InvCount.trans_date)
+        .filter(
+            InvCount.store_id == session["store"],
+            InvCount.trans_date < today,
+        )
+        .order_by(InvCount.trans_date.desc())
+        .first()
+    )
+    prev_date = prev_date[0]
+    prev_date = prev_date.strftime('%Y-%m-%d')
+    
     start = time.time()
-    ordered_counts = getVariance(session["store"], today)
+    ordered_counts = getVariance(session["store"], today, prev_date)
     sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
     # ic(ordered_counts)
     end = time.time()
@@ -73,7 +85,6 @@ def report():
         title="Variance-Daily",
         **locals(),
     )
-
 
 @blueprint.route("/report/<product>/details", methods=["GET", "POST"])
 @login_required
