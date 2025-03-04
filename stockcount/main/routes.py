@@ -96,7 +96,7 @@ def report():
 
     start = time.time()
     ordered_counts = getVariance(session["store"], today, prev_date)
-    sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
+    # sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
     # ic(ordered_counts)
     end = time.time()
     # ic(f"Time to getVariance: {end - start}")
@@ -185,12 +185,12 @@ def report_details(product):
         InvCount.trans_date >= weekly,
     )
 
-    # get the number from purchase_weekly
-    purchase_total = 0
-    for row in purchase_weekly:
-        purchase_total = row.total
-
-    purchase_total = int(purchase_total or 0)
+    # # get the number from purchase_weekly
+    # purchase_total = 0
+    # for row in purchase_weekly:
+    #     purchase_total = row.total
+    #
+    # purchase_total = int(purchase_total or 0)
 
     # # end timer
     # end = time.time()
@@ -309,13 +309,6 @@ def report_details(product):
         .order_by(StockcountPurchases.date.desc())
     )
 
-    # if (
-    #     current_product.item_name == "PREP Marination Sirloin (10 oz-wt)"
-    #     or current_product.item_name == "BEEF Steak 10oz Sirloin Choice"
-    # ):
-    #     sirloinPurchases = getSirloinPurchases(session["store"], monthly, end_date)
-    #     # ic(sirloinPurchases)
-
     sales_list = (
         db.session.query(
             StockcountSales.date,
@@ -340,7 +333,7 @@ def report_details(product):
             StockcountWaste.store == current_location.name,
             StockcountWaste.item == current_product.item_name,
             StockcountWaste.date >= monthly,
-            StockcountWaste.date < today,
+            StockcountWaste.date <= today,
         )
         .group_by(StockcountWaste.date)
         .order_by(StockcountWaste.date.desc())
@@ -436,6 +429,20 @@ def report_details(product):
 
     # drop last item in details list
     details.pop()
+
+    first_entry = details[0]
+    current_on_hand = (
+        first_entry["count_total"]
+        if first_entry["count_total"] != 0
+        else first_entry["theory"]
+    )
+    purchase_total = sum(d["purchase_count"] for d in details)
+    sales_total = sum(d["sales_count"] for d in details)
+    avg_sales_total = sales_total / 7
+    waste_total = sum(d["sales_waste"] for d in details)
+    count_total_list = [d["count_total"] for d in details]
+    avg_count_total = sum(count_total_list) / len(count_total_list)
+    avg_on_hand = current_on_hand / avg_sales_total
 
     # # end time
     # end = time.time()
