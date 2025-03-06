@@ -1,6 +1,6 @@
 """sqlalchemy database models"""
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 
 from flask import current_app
 from flask_mailman import EmailMessage, Mail
@@ -16,6 +16,7 @@ from sqlalchemy import PrimaryKeyConstraint
 mail = Mail()
 db = SQLAlchemy()
 security = Security()
+UTC = timezone.utc
 
 
 # Create a table to support a many-to-many relationship between Users and Roles
