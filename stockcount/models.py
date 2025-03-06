@@ -93,6 +93,7 @@ class Users(db.Model, UserMixin):
     def __str__(self):
         return f"{self.first_name}, {self.last_name}, {self.email}, {self.active}, {self.roles}, {self.stores}"
 
+
 user_datastore = SQLAlchemySessionUserDatastore(db.session, Users, Roles)
 
 
@@ -223,9 +224,10 @@ class InvSales(db.Model):
     def __repr__(self):
         return f"InvSales('{self.trans_date}', '{self.item_name}', '{self.each_count}', '{self.waste}', '{self.sales_total}', '{self.item_id}', '{self.store_id}')"
 
+
 class StockcountPurchases(db.Model):
     __tablename__ = "stockcount_purchases"
-    
+
     transactionid = db.Column(db.String, primary_key=True)
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     week = db.Column(db.Integer)
@@ -237,10 +239,11 @@ class StockcountPurchases(db.Model):
     quantity = db.Column(db.Integer)
     uofm = db.Column(db.String)
     unit_count = db.Column(db.Float)
-    
+
+
 class StockcountSales(db.Model):
     __tablename__ = "stockcount_sales"
-    
+
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     dow = db.Column(db.Integer)
     week = db.Column(db.Integer)
@@ -256,12 +259,14 @@ class StockcountSales(db.Model):
     base_uofm = db.Column(db.String)
     count_usage = db.Column(db.Float)
 
-    
-    __table_args__ = (PrimaryKeyConstraint('date', 'store', 'menuitem', name='unique_sales'),)
-    
+    __table_args__ = (
+        PrimaryKeyConstraint("date", "store", "menuitem", name="unique_sales"),
+    )
+
+
 class StockcountWaste(db.Model):
     __tablename__ = "stockcount_waste"
-    
+
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     dow = db.Column(db.Integer)
     week = db.Column(db.Integer)
@@ -273,24 +278,28 @@ class StockcountWaste(db.Model):
     quantity = db.Column(db.Float)
     base_uofm = db.Column(db.String)
     base_qty = db.Column(db.Float)
-    
-    __table_args__ = (PrimaryKeyConstraint('date', 'store', 'item', name='unique_waste'),)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("date", "store", "item", name="unique_waste"),
+    )
+
 
 class RecipeIngredients(db.Model):
     __tablename__ = "recipe_ingredients"
-    
+
     concept = db.Column(db.String)
     menu_item = db.Column(db.String)
     recipe = db.Column(db.String)
     ingredient = db.Column(db.String)
     qty = db.Column(db.Float)
     uofm = db.Column(db.String)
-    
-    __table_args__ = (PrimaryKeyConstraint('menu_item', 'recipe', 'ingredient'),)
+
+    __table_args__ = (PrimaryKeyConstraint("menu_item", "recipe", "ingredient"),)
+
 
 class MenuItems(db.Model):
     __tablename__ = "inv_menu_items"
-    
+
     id = db.Column(db.Integer, primary_key=True)
     menu_item = db.Column(db.String)
     purchases_name = db.Column(db.String)
