@@ -1,6 +1,6 @@
 """sqlalchemy database models"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import current_app
 from flask_mailman import EmailMessage, Mail
@@ -16,6 +16,7 @@ from sqlalchemy import PrimaryKeyConstraint
 mail = Mail()
 db = SQLAlchemy()
 security = Security()
+UTC = timezone.utc
 
 
 # Create a table to support a many-to-many relationship between Users and Roles
@@ -229,11 +230,11 @@ class StockcountPurchases(db.Model):
     __tablename__ = "stockcount_purchases"
 
     transactionid = db.Column(db.String, primary_key=True)
-    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(UTC).date())
     week = db.Column(db.Integer)
     period = db.Column(db.Integer)
     year = db.Column(db.Integer)
-    id = db.Column(db.Integer)
+    store_id = db.Column(db.Integer)
     store = db.Column(db.String)
     item = db.Column(db.String)
     quantity = db.Column(db.Integer)
@@ -243,8 +244,7 @@ class StockcountPurchases(db.Model):
 
 class StockcountSales(db.Model):
     __tablename__ = "stockcount_sales"
-
-    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(UTC).date())
     dow = db.Column(db.Integer)
     week = db.Column(db.Integer)
     period = db.Column(db.Integer)
@@ -266,12 +266,12 @@ class StockcountSales(db.Model):
 
 class StockcountWaste(db.Model):
     __tablename__ = "stockcount_waste"
-
-    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(UTC).date())
     dow = db.Column(db.Integer)
     week = db.Column(db.Integer)
     period = db.Column(db.Integer)
     year = db.Column(db.Integer)
+    store_id = db.Column(db.Integer)
     store = db.Column(db.String)
     item = db.Column(db.String)
     uofm = db.Column(db.String)
