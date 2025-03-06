@@ -1,6 +1,6 @@
 """sqlalchemy database models"""
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 from flask import current_app
 from flask_mailman import EmailMessage, Mail

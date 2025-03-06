@@ -1,6 +1,13 @@
 from flask_security import current_user
 
-from stockcount.models import Users, Restaurants, InvItems, Item, RecipeIngredients, MenuItems
+from stockcount.models import (
+    Users,
+    Restaurants,
+    InvItems,
+    Item,
+    RecipeIngredients,
+    MenuItems,
+)
 from flask import session
 from sqlalchemy import or_, and_, not_
 from sqlalchemy.orm import joinedload
@@ -13,7 +20,8 @@ from icecream import ic
 from collections import namedtuple
 
 # Define a namedtuple called 'MenuItem'
-MenuItem = namedtuple('MenuItem', ['menu_item', 'recipe', 'ingredient', 'id'])
+MenuItem = namedtuple("MenuItem", ["menu_item", "recipe", "ingredient", "id"])
+
 
 def set_user_access():
     store_list = Users.query.filter_by(id=current_user.id).first()
@@ -27,6 +35,7 @@ def set_user_access():
         access.append(store.id)
     return access
 
+
 def store_query():
     return (
         Restaurants.query.filter(Restaurants.id.in_(session["access"]))
@@ -37,71 +46,95 @@ def store_query():
 
 def stockcount_query():
     # Return InvCount items that begin with "BEEF" or contain "PORK Chop"
-    return Item.query.filter(
-        or_(
-            Item.name.like("BEEF%"),
-            and_(
-                Item.name.like("PORK%"),
-                Item.name.like("%Chop %")  # Added wildcard for "Chop" match
-            ),
-            Item.name.like("%Chicken Wing Jumbo%"),
-            Item.name.like("%SEAFOOD Crab Cake%"),
-            Item.name.like("%PREP Marination Sirloin%")
+    return (
+        Item.query.filter(
+            or_(
+                Item.name.like("BEEF%"),
+                and_(
+                    Item.name.like("PORK%"),
+                    Item.name.like("%Chop %"),  # Added wildcard for "Chop" match
+                ),
+                Item.name.like("%Chicken Wing Jumbo%"),
+                Item.name.like("%SEAFOOD Crab Cake%"),
+                Item.name.like("%PREP Marination Sirloin%"),
+            )
         )
-    ).order_by(Item.name).all()
+        .order_by(Item.name)
+        .all()
+    )
+
 
 def menu_item_query():
     result = []
     missing = []
 
     # Initial query to get all items
-    initial_results = db.session.query(
-        RecipeIngredients.menu_item,
-        RecipeIngredients.recipe,
-        RecipeIngredients.ingredient,
-        InvItems.id
-    ).join(
-        InvItems,
-        RecipeIngredients.ingredient == InvItems.item_name
-    ).filter(
-        InvItems.store_id == session["store"]
-    ).distinct().order_by(
-        RecipeIngredients.menu_item
-    ).all()
-    
+    initial_results = (
+        db.session.query(
+            RecipeIngredients.menu_item,
+            RecipeIngredients.recipe,
+            RecipeIngredients.ingredient,
+            InvItems.id,
+        )
+        .join(InvItems, RecipeIngredients.ingredient == InvItems.item_name)
+        .filter(InvItems.store_id == session["store"])
+        .distinct()
+        .order_by(RecipeIngredients.menu_item)
+        .all()
+    )
+
     # Separate items with menu_item as None and not None
-    missing = [item for item in initial_results if item.menu_item is None] 
-    result = [item for item in initial_results if item.menu_item is not None]        
-    
+    missing = [item for item in initial_results if item.menu_item is None]
+    result = [item for item in initial_results if item.menu_item is not None]
+
     # ic(missing)
     for item in missing:
         # Fetch the menu_item from RecipeIngredients and extract the value
-        menu_item_result = db.session.query(RecipeIngredients.menu_item).filter(RecipeIngredients.ingredient == item.recipe).all()
+        menu_item_result = (
+            db.session.query(RecipeIngredients.menu_item)
+            .filter(RecipeIngredients.ingredient == item.recipe)
+            .all()
+        )
         # drop any duplicates or menu_item is None
         menu_item_result = list(set(menu_item_result))
         # drop any row with menu_item = None
-        menu_item_result = [menu_item for menu_item in menu_item_result if menu_item[0] is not None]
+        menu_item_result = [
+            menu_item for menu_item in menu_item_result if menu_item[0] is not None
+        ]
         # if menu_item_result is empty, skip it
         if not menu_item_result:
             continue
-                
+
         # Fetch the id from InvItems and extract the value
-        id_result = db.session.query(InvItems.id).filter(InvItems.item_name == item.ingredient, InvItems.store_id == session["store"]).scalar()
-    
+        id_result = (
+            db.session.query(InvItems.id)
+            .filter(
+                InvItems.item_name == item.ingredient,
+                InvItems.store_id == session["store"],
+            )
+            .scalar()
+        )
+
         # ic(menu_item_result, item.recipe, item.ingredient, id_result, session["store"])
 
         # Add a new row to result for each menu_item_result using the same recipe, ingredient, and id
         for menu_item in menu_item_result:
-            result.append(MenuItem(menu_item[0], item.recipe, item.ingredient, id_result))
+            result.append(
+                MenuItem(menu_item[0], item.recipe, item.ingredient, id_result)
+            )
         # remove the item from missing
         missing.remove(item)
-        
+
     # Query inv_menu_items and remove any that are already in result
-    menu_items = db.session.query(MenuItems.menu_item).filter(MenuItems.store_id == session["store"]).all()
+    menu_items = (
+        db.session.query(MenuItems.menu_item)
+        .filter(MenuItems.store_id == session["store"])
+        .all()
+    )
     menu_items = [menu_item[0] for menu_item in menu_items]
     result = [item for item in result if item.menu_item not in menu_items]
 
-    # ic(result)            
+    # ic(result)
     return result
 
 
@@ -112,10 +145,12 @@ def item_query():
 def item_number():
     return InvItems.query.count()
 
+
 def execute_query(query, param):
     stmt = db.text(query)
     results = db.session.execute(stmt, param).fetchall()
     return results
+
 
 def getSirloinPurchases(store_id, start_date, end_date):
     query = """
@@ -124,14 +159,10 @@ def getSirloinPurchases(store_id, start_date, end_date):
         item,
         unit_count
     FROM stockcount_purchases
-    WHERE date >= :start_date AND date <= :end_date AND id = :store_id AND item = 'BEEF Steak 10oz Sirloin Choice';
+    WHERE date >= :start_date AND date <= :end_date AND store_id = :store_id AND item = 'BEEF Steak 10oz Sirloin Choice';
     """
 
-    params = {
-        'store_id': store_id,
-        'start_date': start_date,
-        'end_date': end_date
-    }
+    params = {"store_id": store_id, "start_date": start_date, "end_date": end_date}
 
     results = execute_query(query, params)
     return results
@@ -158,7 +189,7 @@ def getVariance(store_id, date, prev_date):
     purchase_counts AS (
         SELECT item, CAST(COALESCE(unit_count, 0) AS int) AS purchase_count
         FROM stockcount_purchases
-        WHERE date = :purchase_date AND id = :store_id
+        WHERE date = :purchase_date AND store_id = :store_id
     ),
     locations AS (
         SELECT name AS store
@@ -183,14 +214,15 @@ def getVariance(store_id, date, prev_date):
     FROM current_day
     JOIN theory_calculation USING (item_name);
     """
-    
+
     params = {
-        'store_id': store_id,
-        'trans_date': date,
-        'previous_date': prev_date,  # Provide the correct date for previous_day query
-        'sales_date': date,
-        'purchase_date': date,
-        'waste_date': date
+        "store_id": store_id,
+        "trans_date": date,
+        "previous_date": prev_date,  # Provide the correct date for previous_day query
+        "sales_date": date,
+        "purchase_date": date,
+        "waste_date": date,
     }
     results = execute_query(query, params)
     return results
+
