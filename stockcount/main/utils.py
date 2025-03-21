@@ -1,6 +1,10 @@
 from flask_security import current_user
 
 from stockcount.models import (
+    InvCount,
+    StockcountPurchases,
+    StockcountSales,
+    StockcountWaste,
     Users,
     Restaurants,
     InvItems,
@@ -168,6 +172,89 @@ def getSirloinPurchases(store_id, start_date, end_date):
     return results
 
 
+def getTheory(item_name, date):
+    begin_count = (
+        db.session.query(InvCount.previous_total)
+        .filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_name == item_name,
+            InvCount.trans_date == date,
+        )
+        .first()
+    )
+    if begin_count is None:
+        begin_count = 0
+    else:
+        begin_count = begin_count[0]
+
+    purchases = (
+        db.session.query(StockcountPurchases.unit_count)
+        .filter(
+            StockcountPurchases.store_id == session["store"],
+            StockcountPurchases.item == item_name,
+            StockcountPurchases.date == date,
+        )
+        .first()
+    )
+    if purchases is None:
+        purchases = 0
+    else:
+        purchases = purchases[0]
+
+    sales = (
+        db.session.query(StockcountSales.count_usage)
+        .filter(
+            StockcountSales.store_id == session["store"],
+            StockcountSales.ingredient == item_name,
+            StockcountSales.date == date,
+        )
+        .first()
+    )
+    if sales is None:
+        sales = 0
+    else:
+        sales = sales[0]
+
+    waste = (
+        db.session.query(StockcountWaste.quantity)
+        .filter(
+            StockcountWaste.store_id == session["store"],
+            StockcountWaste.item == item_name,
+            StockcountWaste.date == date,
+        )
+        .first()
+    )
+    if waste is None:
+        waste = 0
+    else:
+        waste = waste[0]
+
+    print(
+        f"{begin_count + purchases - sales - waste} = {begin_count} + {purchases} - {sales} - {waste}"
+    )
+    theory = begin_count + purchases - sales - waste
+
+    return theory
+
+
+def getCount(item_name, date):
+    count = (
+        db.session.query(InvCount.count_total)
+        .filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_name == item_name,
+            InvCount.trans_date == date,
+        )
+        .first()
+    )
+    if count is None:
+        count = 0
+    else:
+        count = count[0]
+
+    return count
+
+
 def getVariance(store_id, date, prev_date):
     query = """
     WITH current_day AS (
@@ -225,4 +312,3 @@ def getVariance(store_id, date, prev_date):
     }
     results = execute_query(query, params)
     return results
-

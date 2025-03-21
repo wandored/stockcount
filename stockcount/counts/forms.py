@@ -43,7 +43,8 @@ class NewItemForm(FlaskForm):
     )
     casepack = IntegerField("# per Case: ", validators=[DataRequired()])
     submit = SubmitField("Submit")
-    
+
+
 class NewMenuItemForm(FlaskForm):
     itemname = QuerySelectField(
         "Select Item: ",
@@ -67,15 +68,17 @@ class EnterCountForm(FlaskForm):
     casecount = IntegerField("Case Count: ", default=0)
     eachcount = IntegerField("Each Count: ", default=0)
 
+
 class CountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d", default=datetime.today)
-    am_pm = SelectField("Count Type: ", choices=["PM", "AM"], default="PM")
+    am_pm = SelectField("Count Type: ", choices=["PM"], default="PM")
     counts = FieldList(FormField(EnterCountForm), min_entries=1)
     submit = SubmitField("Submit!")
 
+
 class UpdateCountForm(FlaskForm):
     transdate = DateField("Count Date: ", format="%Y-%m-%d")
-    am_pm = SelectField("Count Type: ", choices=["PM", "AM"])
+    am_pm = SelectField("Count Type: ", choices=["PM"])
     itemname = StringField("", validators=[DataRequired()])
     item_id = HiddenField(validators=[DataRequired()])
     casecount = IntegerField("Case Count: ")
@@ -89,10 +92,12 @@ class EnterPurchasesForm(FlaskForm):
     casecount = IntegerField("Cases Purchased: ", default=0)
     eachcount = IntegerField("Each Purchased: ", default=0)
 
+
 class PurchasesForm(FlaskForm):
     transdate = DateField("Purchase Date: ", format="%Y-%m-%d", default=datetime.today)
     purchases = FieldList(FormField(EnterPurchasesForm), min_entries=1)
     submit = SubmitField("Submit!")
+
 
 class UpdatePurchasesForm(FlaskForm):
     transdate = DateField("Purchase Date: ", format="%Y-%m-%d")

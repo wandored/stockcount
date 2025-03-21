@@ -178,7 +178,9 @@ class InvCount(db.Model):
     __tablename__ = "inv_count"
 
     id = db.Column(db.Integer, primary_key=True)
-    trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    trans_date = db.Column(
+        db.Date, nullable=False, default=lambda: datetime.now(UTC).date()
+    )
     count_time = db.Column(db.String(), nullable=False)
     item_name = db.Column(db.String(), nullable=False)
     case_count = db.Column(db.Integer, nullable=False)
@@ -198,7 +200,9 @@ class InvPurchases(db.Model):
     __tablename__ = "inv_purchases"
 
     id = db.Column(db.Integer, primary_key=True)
-    trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    trans_date = db.Column(
+        db.Date, nullable=False, default=lambda: datetime.now(UTC).date()
+    )
     item_name = db.Column(db.String(), nullable=False)
     case_count = db.Column(db.Integer, nullable=False)
     each_count = db.Column(db.Integer, nullable=False)
@@ -214,7 +218,9 @@ class InvSales(db.Model):
     __tablename__ = "inv_sales"
 
     id = db.Column(db.Integer, primary_key=True)
-    trans_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    trans_date = db.Column(
+        db.Date, nullable=False, default=lambda: datetime.now(UTC).date()
+    )
     item_name = db.Column(db.String(), nullable=False)
     each_count = db.Column(db.Integer, nullable=False)
     waste = db.Column(db.Integer, nullable=False)
@@ -281,6 +287,20 @@ class StockcountWaste(db.Model):
 
     __table_args__ = (
         PrimaryKeyConstraint("date", "store", "item", name="unique_waste"),
+    )
+
+
+class StockcountMonthly(db.Model):
+    __tablename__ = "stockcount_monthly"
+
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(UTC).date())
+    item_id = db.Column(db.Integer)
+    item_name = db.Column(db.String)
+    store_id = db.Column(db.Integer)
+    count_total = db.Column(db.Integer)
+
+    __table_args__ = (
+        PrimaryKeyConstraint("date", "store_id", "item_id", name="unique_monthly"),
     )
 
 
