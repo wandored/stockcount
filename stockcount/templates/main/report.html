@@ -2,39 +2,39 @@
 {% block content %}
     <!-- Alerts -->
 <section class="container bg-steel p-3">
-  <legend class="border-bottom text-white mb-6">Count Date: {{ date_time.trans_date.strftime('%A-%m/%d') }}</legend>
+  <legend class="border-bottom text-white mb-6">Last Count Date: {{ last_count.strftime('%A-%m/%d') }}</legend>
   <div class="row">
-    {% for count in ordered_counts %}
+    {% for data in data_rows %}
       <div class="col-md-3 p-1">
-        {% if count.daily_variance < 0 %}
+        {% if data.variance < 0 %}
           <div class="content-section bg-danger">
-            <legend class="text-white mb-1">{{ count.item_name }}</legend>
+            <legend class="text-white mb-1">{{ data.item_name }}</legend>
             <div class="card text-center text-dark bg-light">
               <div class="card-body">
-                <h5 class="card-text">{{ count.daily_variance }}</h5>
+                <h5 class="card-text">{{ "%.0f"|format(data.variance) }}</h5>
               </div>
             </div>
-            <a href="{{ url_for('main_blueprint.report_details', product=count.item_id) }}" class="btn btn-primary">More Details</a>
+            <a href="{{ url_for('main_blueprint.report_details', product=data.item_id) }}" class="btn btn-primary">More Details</a>
           </div>
-        {% elif count.daily_variance > 0 %}
+        {% elif data.variance > 0 %}
           <div class="content-section bg-warning">
-            <legend class="text-dark mb-1">{{ count.item_name }}</legend>
+            <legend class="text-dark mb-1">{{ data.item_name }}</legend>
             <div class="card text-center text-dark bg-light">
               <div class="card-body">
-                <h5 class="card-text">{{ count.daily_variance }}</h5>
+                <h5 class="card-text">{{ "%.0f"|format(data.variance) }}</h5>
               </div>
             </div>
-            <a href="{{ url_for('main_blueprint.report_details', product=count.item_id) }}" class="btn btn-primary">More Details</a>
+            <a href="{{ url_for('main_blueprint.report_details', product=data.item_id) }}" class="btn btn-primary">More Details</a>
           </div>
-        {% elif count.daily_variance == 0 %}
+        {% elif data.variance == 0 %}
           <div class="content-section bg-success">
-            <legend class="text-white mb-1">{{ count.item_name }}</legend>
+            <legend class="text-white mb-1">{{ data.item_name }}</legend>
             <div class="card text-center text-dark bg-light">
               <div class="card-body">
-                <h5 class="card-text">{{ count.daily_variance }}</h5>
+                <h5 class="card-text">{{ "%.0f"|format(data.variance) }}</h5>
               </div>
             </div>
-            <a href="{{ url_for('main_blueprint.report_details', product=count.item_id) }}" class="btn btn-primary">More Details</a>
+            <a href="{{ url_for('main_blueprint.report_details', product=data.item_id) }}" class="btn btn-primary">More Details</a>
           </div>
         {% endif %}
       </div>

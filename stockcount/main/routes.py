@@ -1,34 +1,27 @@
 """main/routes.py is the main flask routes page"""
 
+import logging
 from datetime import datetime, timedelta
 
 from flask import flash, redirect, render_template, session, url_for
 from flask_security import current_user, login_required
 from icecream import ic
-from sqlalchemy import and_, func, cast, Integer
+from sqlalchemy import Integer, cast, func
 
 from stockcount import db
+from stockcount.counts.forms import StoreForm
 from stockcount.main import blueprint
-from stockcount.main.utils import (
-    set_user_access,
-    execute_query,
-    getVariance,
-    getSirloinPurchases,
-)
+from stockcount.main.utils import set_user_access
 from stockcount.models import (
     InvCount,
     InvItems,
-    InvPurchases,
     InvSales,
     Restaurants,
+    StockcountMonthly,
     StockcountPurchases,
     StockcountSales,
     StockcountWaste,
 )
-from stockcount.counts.forms import StoreForm
-
-import logging
-import time
 
 
 @blueprint.route("/", methods=["GET", "POST"])
@@ -45,7 +38,7 @@ def report():
         session["store"] = session["access"][0]
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     # Get the most recent day that was counted
-    date_time = (
+    last_count = (
         InvCount.query.filter_by(store_id=session["store"])
         .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
         .first()
@@ -67,54 +60,130 @@ def report():
 
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
 
-    if date_time is None:
+    if last_count is None:
         flash("You must first enter Counts to see Reports!", "warning")
         logging.error(
             f"User {current_user.email} attempted to access reports without counts"
         )
         return redirect(url_for("counts_blueprint.count"))
 
-    # convert the date_time to a date
-    today = date_time.trans_date.strftime("%Y-%m-%d")
-    today = datetime.strptime(today, "%Y-%m-%d")
-    yesterday = today - timedelta(days=1)
+    # convert the last_count to a date
+    last_count = last_count.trans_date.strftime("%Y-%m-%d")
+    last_count = datetime.strptime(last_count, "%Y-%m-%d")
+    penaltimate_count = last_count - timedelta(days=1)
 
     # Get the date of the 2nd most recent count.
     prev_date = (
         db.session.query(InvCount.trans_date)
         .filter(
             InvCount.store_id == session["store"],
-            InvCount.trans_date < today,
+            InvCount.trans_date < last_count,
         )
         .order_by(InvCount.trans_date.desc())
         .first()
     )
-    # check if pre_date is None and set it to yesterday if needed
+    # check if pre_date is None and set it to penaltimate_count if needed
     if prev_date is None:
-        prev_date = yesterday
+        prev_date = penaltimate_count
     else:
         prev_date = prev_date[0]
         prev_date = prev_date.strftime("%Y-%m-%d")
 
-    start = time.time()
-    ordered_counts = getVariance(session["store"], today, prev_date)
-    sirloin_purchases = getSirloinPurchases(session["store"], yesterday, today)
-    # ic(ordered_counts)
-    end = time.time()
-    # ic(f"Time to getVariance: {end - start}")
-    # ic(sirloin_purchases)
+    items = (
+        db.session.query(
+            InvItems.id, InvItems.item_name, InvItems.store_id, InvItems.id
+        )
+        .filter(InvItems.store_id == session["store"])
+        .all()
+    )
+    data_rows = []
+    for item in items:
+        # build theory table
+        current_count = (
+            db.session.query(
+                StockcountMonthly.count_total,
+            )
+            .filter(
+                StockcountMonthly.store_id == session["store"],
+                StockcountMonthly.item_id == item.id,
+                StockcountMonthly.date == last_count,
+            )
+            .first()
+        )
+        previous_count = (
+            db.session.query(
+                StockcountMonthly.count_total,
+            )
+            .filter(
+                StockcountMonthly.store_id == session["store"],
+                StockcountMonthly.item_id == item.id,
+                StockcountMonthly.date == penaltimate_count,
+            )
+            .first()
+        )
+        purchases = (
+            db.session.query(func.sum(StockcountPurchases.unit_count))
+            .filter(
+                StockcountPurchases.store_id == session["store"],
+                StockcountPurchases.item == item.item_name,
+                StockcountPurchases.date == last_count,
+            )
+            .scalar()
+        )
+        sales = (
+            db.session.query(func.sum(StockcountSales.count_usage))
+            .filter(
+                StockcountSales.store_id == session["store"],
+                StockcountSales.ingredient == item.item_name,
+                StockcountSales.date == last_count,
+            )
+            .scalar()
+        )
+        waste = (
+            db.session.query(func.sum(StockcountWaste.quantity))
+            .filter(
+                StockcountWaste.store_id == session["store"],
+                StockcountWaste.item == item.item_name,
+                StockcountWaste.date == last_count,
+            )
+            .scalar()
+        )
+
+        current_count = current_count[0] if current_count is not None else 0
+        previous_count = previous_count[0] if previous_count is not None else 0
+        purchases = purchases if purchases is not None else 0
+        sales = sales if sales is not None else 0
+        waste = waste if waste is not None else 0
+        theory = previous_count + purchases - sales - waste
+        variance = current_count - theory
+
+        row = {
+            "date": last_count,
+            "item_name": item.item_name,
+            "item_id": item.id,
+            "begin": previous_count,
+            "purchases": purchases,
+            "sales": sales,
+            "waste": waste,
+            "theory": theory,
+            "count": current_count,
+            "variance": variance,
+        }
+        data_rows.append(row)
 
     return render_template(
         "main/report.html",
         title="Variance-Daily",
-        **locals(),
+        store_form=store_form,
+        current_location=current_location,
+        data_rows=data_rows,
+        last_count=last_count,
     )
 
 
 @blueprint.route("/report/<product>/details", methods=["GET", "POST"])
 @login_required
 def report_details(product):
-    total_time = 0
     """display item details"""
 
     store_form = StoreForm()
@@ -133,68 +202,186 @@ def report_details(product):
 
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
-    # restrict results to the last 7 & 28 days
-    last_count = (
-        InvCount.query.filter_by(store_id=session["store"])
-        .order_by(InvCount.trans_date.desc())
-        .first()
-    )
-    end_date = last_count.trans_date
+    # convert the date_time to a date
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+
+    # set end_date to today() - 1
+    end_date = datetime.now().date() - timedelta(days=1)
     weekly = end_date - timedelta(days=6)
     monthly = end_date - timedelta(days=27)
+    entered_count_yesterday = (
+        InvCount.query.filter_by(
+            store_id=session["store"], trans_date=yesterday
+        ).first()
+        is not None
+    )
 
-    # start timer
-    start = time.time()
-    # Boxes Calculations
-    count_daily = (
-        db.session.query(InvCount)
+    # count_list = (
+    #     db.session.query(InvCount)
+    #     .filter(
+    #         InvCount.store_id == session["store"],
+    #         InvCount.item_id == product,
+    #         InvCount.count_time == "PM",
+    #         InvCount.trans_date >= monthly,
+    #         InvCount.trans_date <= today,
+    #     )
+    #     .order_by(InvCount.trans_date.desc())
+    #     .limit(7)
+    # )
+    count_list = (
+        db.session.query(StockcountMonthly)
         .filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == product,
-            InvCount.count_time == "PM",
-            InvCount.trans_date == end_date,
+            StockcountMonthly.store_id == session["store"],
+            StockcountMonthly.item_id == product,
+            StockcountMonthly.date < today,
         )
-        .first()
+        .order_by(StockcountMonthly.date.desc())
+        .limit(7)
     )
-    sales_weekly = db.session.query(
-        func.sum(cast(StockcountSales.count_usage, Integer)).label("total"),
-        func.avg(cast(StockcountSales.count_usage, Integer)).label("sales_avg"),
+
+    purchase_list = (
+        db.session.query(
+            StockcountPurchases.date,
+            func.sum(cast(StockcountPurchases.unit_count, Integer)).label("unit_count"),
+        )
+        .filter(
+            StockcountPurchases.store == current_location.name,
+            StockcountPurchases.item == current_product.item_name,
+            StockcountPurchases.date >= monthly,
+            StockcountPurchases.date <= today,
+        )
+        .group_by(StockcountPurchases.date)
+        .order_by(StockcountPurchases.date.desc())
+    )
+
+    sales_list = (
+        db.session.query(
+            StockcountSales.date,
+            func.sum(cast(StockcountSales.count_usage, Integer)).label("sales_count"),
+        )
+        .filter(
+            StockcountSales.store == current_location.name,
+            StockcountSales.ingredient == current_product.item_name,
+            StockcountSales.date >= monthly,
+            StockcountSales.date <= today,
+        )
+        .group_by(StockcountSales.date)
+        .order_by(StockcountSales.date.desc())
+    )
+
+    waste_list = (
+        db.session.query(
+            StockcountWaste.date,
+            func.sum(cast(StockcountWaste.base_qty, Integer)).label("base_qty"),
+        )
+        .filter(
+            StockcountWaste.store == current_location.name,
+            StockcountWaste.item == current_product.item_name,
+            StockcountWaste.date >= monthly,
+            StockcountWaste.date <= today,
+        )
+        .group_by(StockcountWaste.date)
+        .order_by(StockcountWaste.date.desc())
+    )
+
+    # get todays sales and waste from Inv_sales
+    sales_end = db.session.query(
+        InvSales.item_name, InvSales.each_count, InvSales.waste
     ).filter(
-        StockcountSales.store == current_location.name,
-        StockcountSales.ingredient == current_product.item_name,
-        StockcountSales.date >= weekly,
-        StockcountSales.date <= end_date,
-    )
-    purchase_weekly = db.session.query(
-        func.sum(cast(StockcountPurchases.unit_count, Integer)).label("total")
-    ).filter(
-        StockcountPurchases.store == current_location.name,
-        StockcountPurchases.item == current_product.item_name,
-        StockcountPurchases.date >= weekly,
-        StockcountPurchases.date <= end_date,
+        InvSales.store_id == session["store"],
+        InvSales.item_id == product,
+        InvSales.trans_date == today,
     )
 
-    on_hand_weekly = db.session.query(
-        func.avg(InvCount.count_total).label("average")
-    ).filter(
-        InvCount.store_id == session["store"],
-        InvCount.item_id == product,
-        InvCount.trans_date >= weekly,
+    # Fetch all purchase, sales, and waste data upfront
+    purchase_data = {
+        purchase.date: int(purchase.unit_count) for purchase in purchase_list
+    }
+    sales_data = {sale.date: int(sale.sales_count) for sale in sales_list}
+    waste_data = {waste.date: abs(int(waste.base_qty)) for waste in waste_list}
+
+    count_list = list(count_list)
+
+    # Initialize variables to keep track of previous_total
+    details = []
+    previous_total = None
+
+    # Determine the start date
+    if any(count.date == today for count in count_list):
+        start_date = today
+    else:
+        start_date = today - timedelta(days=1)
+
+    # Iterate over the last 7 days starting from the start_date
+    carryover: int = 0
+    for day in range(8):
+        current_date = start_date - timedelta(days=day)
+        count = next((c for c in count_list if c.date == current_date), None)
+
+        # account for days without a count
+        if count:
+            count_total = count.count_total
+        else:
+            count_total = 0
+
+        # Create a dictionary with trans_date and count_total
+        detail = {
+            "trans_date": current_date,
+            "count_total": count_total,
+            "purchase_count": purchase_data.get(current_date, 0),
+            "sales_count": sales_data.get(current_date, 0),
+            "sales_waste": waste_data.get(current_date, 0),
+            "theory": 0,
+            "daily_variance": 0,
+            "previous_total": 0,
+        }
+
+        # Append the current detail to the details list
+        details.append(detail)
+
+        # if its the last day, get the sales and waste from InvSales
+        if current_date == today:
+            for sale in sales_end:
+                detail["sales_count"] = sale.each_count
+                detail["sales_waste"] = sale.waste
+            details.append(detail)
+
+    for i in range(0, len(details) - 1):
+        details[i]["previous_total"] = details[i + 1]["count_total"]
+
+    # Recalculate theory and daily_variance after updating previous_total
+    for detail in details:
+        detail["theory"] = (
+            detail["previous_total"]
+            + detail["purchase_count"]
+            - detail["sales_count"]
+            - detail["sales_waste"]
+        )
+        detail["daily_variance"] = detail["count_total"] - detail["theory"]
+
+    # drop last item in details list so we only have 7 days
+    details.pop()
+
+    first_entry = details[0]
+    current_on_hand = (
+        first_entry["count_total"]
+        if first_entry["count_total"] != 0
+        else first_entry["theory"]
     )
+    purchase_total = sum(d["purchase_count"] for d in details)
+    sales_total = sum(d["sales_count"] for d in details)
+    avg_sales_total = sales_total / 7
+    waste_total = sum(d["sales_waste"] for d in details)
+    count_total_list = [d["count_total"] for d in details]
+    avg_count_total = sum(count_total_list) / len(count_total_list)
+    # watch for division by 0
+    try:
+        avg_on_hand = current_on_hand / avg_sales_total
+    except ZeroDivisionError:
+        avg_on_hand = 0
 
-    # get the number from purchase_weekly
-    purchase_total = 0
-    for row in purchase_weekly:
-        purchase_total = row.total
-
-    purchase_total = int(purchase_total or 0)
-
-    # end timer
-    end = time.time()
-    # ic(f"Box Time: {end - start}")
-    total_time += end - start
-    start = time.time()
-
+    # TODO update charts
     # Chart 1
     unit_query = (
         db.session.query(InvCount)
@@ -222,12 +409,6 @@ def report_details(product):
         )
         for row in sales_list:
             unit_sales.append(int(row.total or 0))
-
-    # end time
-    end = time.time()
-    # ic(f"Chart 1 Time: {end - start}")
-    total_time += end - start
-    start = time.time()
 
     # Chart #2
     sales_query = (
@@ -269,154 +450,23 @@ def report_details(product):
         avg_sales_day.append(float(w.sales_avg))
         avg_waste_day.append(float(w.waste_avg))
 
-    # end time
-    end = time.time()
-    # ic(f"Chart 2 Time: {end - start}")
-    total_time += end - start
-    start = time.time()
-
-    # Details Table
-    # get the last 7 days of counts starting from the end_date
-
-    count_list = (
-        db.session.query(InvCount)
-        .filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == product,
-            InvCount.count_time == "PM",
-            InvCount.trans_date >= monthly,
-            InvCount.trans_date <= end_date,
-        )
-        .order_by(InvCount.trans_date.desc())
-        .limit(7)
-    )
-
-    purchase_list = (
-        db.session.query(
-            StockcountPurchases.date,
-            func.sum(cast(StockcountPurchases.unit_count, Integer)).label("unit_count"),
-        )
-        .filter(
-            StockcountPurchases.store == current_location.name,
-            StockcountPurchases.item == current_product.item_name,
-            StockcountPurchases.date >= monthly,
-            StockcountPurchases.date <= end_date,
-        )
-        .group_by(StockcountPurchases.date)
-        .order_by(StockcountPurchases.date.desc())
-    )
-
-    if (
-        current_product.item_name == "PREP Marination Sirloin (10 oz-wt)"
-        or current_product.item_name == "BEEF Steak 10oz Sirloin Choice"
-    ):
-        sirloinPurchases = getSirloinPurchases(session["store"], monthly, end_date)
-        # ic(sirloinPurchases)
-
-    sales_list = (
-        db.session.query(
-            StockcountSales.date,
-            func.sum(cast(StockcountSales.count_usage, Integer)).label("sales_count"),
-        )
-        .filter(
-            StockcountSales.store == current_location.name,
-            StockcountSales.ingredient == current_product.item_name,
-            StockcountSales.date >= monthly,
-            StockcountSales.date <= end_date,
-        )
-        .group_by(StockcountSales.date)
-        .order_by(StockcountSales.date.desc())
-    )
-
-    waste_list = (
-        db.session.query(
-            StockcountWaste.date,
-            func.sum(cast(StockcountWaste.base_qty, Integer)).label("base_qty"),
-        )
-        .filter(
-            StockcountWaste.store == current_location.name,
-            StockcountWaste.item == current_product.item_name,
-            StockcountWaste.date >= monthly,
-            StockcountWaste.date < end_date,
-        )
-        .group_by(StockcountWaste.date)
-        .order_by(StockcountWaste.date.desc())
-    )
-
-    # get end date's sales and waste from Inv_sales
-    sales_end = db.session.query(
-        InvSales.item_name, InvSales.each_count, InvSales.waste
-    ).filter(
-        InvSales.store_id == session["store"],
-        InvSales.item_id == product,
-        InvSales.trans_date == end_date,
-    )
-
-    # Fetch all purchase, sales, and waste data upfront
-    purchase_data = {
-        purchase.date: int(purchase.unit_count) for purchase in purchase_list
-    }
-    sales_data = {sale.date: int(sale.sales_count) for sale in sales_list}
-    waste_data = {waste.date: abs(int(waste.base_qty)) for waste in waste_list}
-
-    # Initialize variables to keep track of previous_total
-    details = []
-    previous_total = None
-    # Iterate over count_list
-    for i, count in enumerate(count_list):
-        # Fetch previous_total from the previous iteration
-        try:
-            previous_total = count_list[i + 1].count_total
-        except:
-            previous_total = 0
-
-        # Create a dictionary with trans_date and count_total
-        detail = {
-            "trans_date": count.trans_date,
-            "count_total": count.count_total,
-            "purchase_count": purchase_data.get(count.trans_date, 0),
-            "sales_count": sales_data.get(count.trans_date, 0),
-            "sales_waste": waste_data.get(count.trans_date, 0),
-            "theory": 0,
-            "daily_variance": 0,
-            "previous_total": previous_total if previous_total is not None else 0,
-        }
-
-        if current_product.item_name == "PREP Marination Sirloin (10 oz-wt)":
-            for purchase in sirloinPurchases:
-                if purchase.date == count.trans_date:
-                    detail["purchase_count"] = int(purchase.unit_count)
-                    break
-
-        # if its the last day, get the sales and waste from InvSales
-        if i == 0:
-            for sale in sales_end:
-                detail["sales_count"] = sale.each_count
-                detail["sales_waste"] = sale.waste
-
-        # Calculate the theory and daily_variance
-        detail["theory"] = (
-            detail["previous_total"]
-            + detail["purchase_count"]
-            - detail["sales_count"]
-            - detail["sales_waste"]
-        )
-        detail["daily_variance"] = detail["count_total"] - detail["theory"]
-
-        # Append the current detail to the details list
-        details.append(detail)
-
-    # end time
-    end = time.time()
-    # ic(f"Table Time: {end - start}")
-    total_time += end - start
-    # ic(f"Total Time: {total_time}")
-    start = time.time()
-
     item_name = db.session.query(InvItems).filter(InvItems.id == product).first()
 
     return render_template(
         "main/details.html",
+        store_form=store_form,
         title="Item Variance Details",
-        **locals(),
+        current_location=current_location,
+        item_name=item_name,
+        details=details,
+        purchase_total=purchase_total,
+        sales_total=sales_total,
+        avg_count_total=avg_count_total,
+        avg_on_hand=avg_on_hand,
+        labels=labels,
+        unit_sales=unit_sales,
+        unit_onhand=unit_onhand,
+        day_avg_sales=day_avg_sales,
+        avg_sales_day=avg_sales_day,
+        avg_waste_day=avg_waste_day,
     )
