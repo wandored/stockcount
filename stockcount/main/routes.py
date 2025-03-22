@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 from flask import flash, redirect, render_template, session, url_for
 from flask_security import current_user, login_required
-from icecream import ic
 from sqlalchemy import Integer, cast, func
 
 from stockcount import db
@@ -37,12 +36,6 @@ def report():
     if session.get("store") is None or session.get("store") not in session["access"]:
         session["store"] = session["access"][0]
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
-    # Get the most recent day that was counted
-    last_count = (
-        InvCount.query.filter_by(store_id=session["store"])
-        .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
-        .first()
-    )
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -58,8 +51,12 @@ def report():
                 )
         return redirect(url_for("main_blueprint.report"))
 
-    current_location = Restaurants.query.filter_by(id=session["store"]).first()
-
+    # Get the most recent day that was counted
+    last_count = (
+        InvCount.query.filter_by(store_id=session["store"])
+        .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
+        .first()
+    )
     if last_count is None:
         flash("You must first enter Counts to see Reports!", "warning")
         logging.error(
@@ -70,24 +67,8 @@ def report():
     # convert the last_count to a date
     last_count = last_count.trans_date.strftime("%Y-%m-%d")
     last_count = datetime.strptime(last_count, "%Y-%m-%d")
+    today = (datetime.now() - timedelta(hours=4)).date()
     penaltimate_count = last_count - timedelta(days=1)
-
-    # Get the date of the 2nd most recent count.
-    prev_date = (
-        db.session.query(InvCount.trans_date)
-        .filter(
-            InvCount.store_id == session["store"],
-            InvCount.trans_date < last_count,
-        )
-        .order_by(InvCount.trans_date.desc())
-        .first()
-    )
-    # check if pre_date is None and set it to penaltimate_count if needed
-    if prev_date is None:
-        prev_date = penaltimate_count
-    else:
-        prev_date = prev_date[0]
-        prev_date = prev_date.strftime("%Y-%m-%d")
 
     items = (
         db.session.query(
@@ -130,12 +111,30 @@ def report():
             )
             .scalar()
         )
+        today_sales = (
+            db.session.query(func.sum(InvSales.sales_total))
+            .filter(
+                InvSales.store_id == session["store"],
+                InvSales.item_name == item.item_name,
+                InvSales.trans_date == today,
+            )
+            .scalar()
+        )
         sales = (
             db.session.query(func.sum(StockcountSales.count_usage))
             .filter(
                 StockcountSales.store_id == session["store"],
                 StockcountSales.ingredient == item.item_name,
                 StockcountSales.date == last_count,
+            )
+            .scalar()
+        )
+        today_waste = (
+            db.session.query(func.sum(InvSales.waste))
+            .filter(
+                InvSales.store_id == session["store"],
+                InvSales.item_name == item.item_name,
+                InvSales.trans_date == today,
             )
             .scalar()
         )
@@ -149,27 +148,33 @@ def report():
             .scalar()
         )
 
+        # Handle None valies
         current_count = current_count[0] if current_count is not None else 0
         previous_count = previous_count[0] if previous_count is not None else 0
         purchases = purchases if purchases is not None else 0
+        sales = today_sales if today_sales is not None else sales
         sales = sales if sales is not None else 0
+        waste = today_waste if today_waste is not None else waste
         waste = waste if waste is not None else 0
+
+        # Calculate theory and variance
         theory = previous_count + purchases - sales - waste
         variance = current_count - theory
 
-        row = {
-            "date": last_count,
-            "item_name": item.item_name,
-            "item_id": item.id,
-            "begin": previous_count,
-            "purchases": purchases,
-            "sales": sales,
-            "waste": waste,
-            "theory": theory,
-            "count": current_count,
-            "variance": variance,
-        }
-        data_rows.append(row)
+        data_rows.append(
+            {
+                "date": last_count,
+                "item_name": item.item_name,
+                "item_id": item.id,
+                "begin": previous_count,
+                "purchases": purchases,
+                "sales": sales,
+                "waste": waste,
+                "theory": theory,
+                "count": current_count,
+                "variance": variance,
+            }
+        )
 
     return render_template(
         "main/report.html",
@@ -202,39 +207,51 @@ def report_details(product):
 
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
-    # convert the date_time to a date
-    today = datetime.now().date()
+
+    # today = datetime.now().date()
+    today = (datetime.now() - timedelta(hours=4)).date()
     yesterday = today - timedelta(days=1)
+
+    # Check if there is data for today
+    has_count_today = (
+        db.session.query(InvCount.trans_date)
+        .filter(
+            InvCount.store_id == session["store"],
+            InvCount.item_id == product,
+            InvCount.trans_date == today,
+        )
+        .first()
+        is not None
+    )
+
+    has_sales_today = (
+        db.session.query(InvSales.trans_date)
+        .filter(
+            InvSales.store_id == session["store"],
+            InvSales.item_id == product,
+            InvSales.trans_date == today,
+        )
+        .first()
+        is not None
+    )
 
     # set end_date to today() - 1
     end_date = datetime.now().date() - timedelta(days=1)
     weekly = end_date - timedelta(days=6)
     monthly = end_date - timedelta(days=27)
-    entered_count_yesterday = (
-        InvCount.query.filter_by(
-            store_id=session["store"], trans_date=yesterday
-        ).first()
-        is not None
-    )
-
-    # count_list = (
-    #     db.session.query(InvCount)
-    #     .filter(
-    #         InvCount.store_id == session["store"],
-    #         InvCount.item_id == product,
-    #         InvCount.count_time == "PM",
-    #         InvCount.trans_date >= monthly,
-    #         InvCount.trans_date <= today,
-    #     )
-    #     .order_by(InvCount.trans_date.desc())
-    #     .limit(7)
+    # entered_count_yesterday = (
+    #     InvCount.query.filter_by(
+    #         store_id=session["store"], trans_date=yesterday
+    #     ).first()
+    #     is not None
     # )
+
     count_list = (
         db.session.query(StockcountMonthly)
         .filter(
             StockcountMonthly.store_id == session["store"],
             StockcountMonthly.item_id == product,
-            StockcountMonthly.date < today,
+            StockcountMonthly.date <= today,
         )
         .order_by(StockcountMonthly.date.desc())
         .limit(7)
@@ -285,15 +302,6 @@ def report_details(product):
         .order_by(StockcountWaste.date.desc())
     )
 
-    # get todays sales and waste from Inv_sales
-    sales_end = db.session.query(
-        InvSales.item_name, InvSales.each_count, InvSales.waste
-    ).filter(
-        InvSales.store_id == session["store"],
-        InvSales.item_id == product,
-        InvSales.trans_date == today,
-    )
-
     # Fetch all purchase, sales, and waste data upfront
     purchase_data = {
         purchase.date: int(purchase.unit_count) for purchase in purchase_list
@@ -305,16 +313,14 @@ def report_details(product):
 
     # Initialize variables to keep track of previous_total
     details = []
-    previous_total = None
 
     # Determine the start date
-    if any(count.date == today for count in count_list):
+    if has_count_today:
         start_date = today
     else:
         start_date = today - timedelta(days=1)
 
     # Iterate over the last 7 days starting from the start_date
-    carryover: int = 0
     for day in range(8):
         current_date = start_date - timedelta(days=day)
         count = next((c for c in count_list if c.date == current_date), None)
@@ -337,15 +343,18 @@ def report_details(product):
             "previous_total": 0,
         }
 
-        # Append the current detail to the details list
-        details.append(detail)
-
         # if its the last day, get the sales and waste from InvSales
-        if current_date == today:
+        if current_date == today and has_sales_today:
+            sales_end = db.session.query(InvSales.each_count, InvSales.waste).filter(
+                InvSales.store_id == session["store"],
+                InvSales.item_id == product,
+                InvSales.trans_date == current_date,
+            )
             for sale in sales_end:
                 detail["sales_count"] = sale.each_count
                 detail["sales_waste"] = sale.waste
-            details.append(detail)
+        # Append the current detail to the details list
+        details.append(detail)
 
     for i in range(0, len(details) - 1):
         details[i]["previous_total"] = details[i + 1]["count_total"]
