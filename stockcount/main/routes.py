@@ -208,10 +208,7 @@ def report_details(product):
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
 
-    # today = datetime.now().date()
     today = (datetime.now() - timedelta(hours=4)).date()
-    yesterday = today - timedelta(days=1)
-
     # Check if there is data for today
     has_count_today = (
         db.session.query(InvCount.trans_date)
@@ -239,12 +236,7 @@ def report_details(product):
     end_date = datetime.now().date() - timedelta(days=1)
     weekly = end_date - timedelta(days=6)
     monthly = end_date - timedelta(days=27)
-    # entered_count_yesterday = (
-    #     InvCount.query.filter_by(
-    #         store_id=session["store"], trans_date=yesterday
-    #     ).first()
-    #     is not None
-    # )
+    eight_weeks = end_date - timedelta(days=55)
 
     count_list = (
         db.session.query(StockcountMonthly)
@@ -381,7 +373,6 @@ def report_details(product):
     purchase_total = sum(d["purchase_count"] for d in details)
     sales_total = sum(d["sales_count"] for d in details)
     avg_sales_total = sales_total / 7
-    waste_total = sum(d["sales_waste"] for d in details)
     count_total_list = [d["count_total"] for d in details]
     avg_count_total = sum(count_total_list) / len(count_total_list)
     # watch for division by 0
@@ -390,29 +381,27 @@ def report_details(product):
     except ZeroDivisionError:
         avg_on_hand = 0
 
-    # TODO update charts
     # Chart 1
     unit_query = (
-        db.session.query(InvCount)
+        db.session.query(StockcountMonthly)
         .filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == product,
-            InvCount.count_time == "PM",
-            InvCount.trans_date >= weekly,
+            StockcountMonthly.store_id == session["store"],
+            StockcountMonthly.item_id == product,
+            StockcountMonthly.date >= weekly,
         )
-        .order_by(InvCount.trans_date)
+        .order_by(StockcountMonthly.date)
         .all()
     )
     labels = []
     unit_onhand = []
     unit_sales = []
     for i in unit_query:
-        labels.append(i.trans_date.strftime("%A"))
+        labels.append(i.date.strftime("%A"))
         unit_onhand.append(i.count_total)
         sales_list = db.session.query(
             func.sum(StockcountSales.count_usage).label("total")
         ).filter(
-            StockcountSales.date == i.trans_date,
+            StockcountSales.date == i.date,
             StockcountSales.store == current_location.name,
             StockcountSales.ingredient == current_product.item_name,
         )
@@ -422,29 +411,31 @@ def report_details(product):
     # Chart #2
     sales_query = (
         db.session.query(
-            func.extract("dow", InvSales.trans_date).label("dow"),
-            func.avg(InvSales.each_count).label("average"),
+            StockcountSales.dow,
+            func.avg(StockcountSales.count_usage).label("average"),
         )
         .filter(
-            InvSales.store_id == session["store"],
-            InvSales.item_id == product,
-            InvSales.trans_date >= monthly,
+            StockcountSales.store_id == session["store"],
+            StockcountSales.ingredient == current_product.item_name,
+            StockcountSales.date >= monthly,
         )
-        .group_by(func.extract("dow", InvSales.trans_date))
+        .group_by(StockcountSales.dow)
+        .order_by(StockcountSales.dow)
     )
 
-    weekly_avg = (
+    weekly_hi_low_sales = (
         db.session.query(
-            InvSales,
-            func.avg(InvSales.each_count).label("sales_avg"),
-            func.avg(InvSales.waste).label("waste_avg"),
+            func.max(StockcountSales.count_usage).label("sales_high"),
+            func.min(StockcountSales.count_usage).label("sales_low"),
+            func.avg(StockcountSales.count_usage).label("sales_avg"),
         )
         .filter(
-            InvSales.store_id == session["store"],
-            InvSales.item_id == product,
-            InvSales.trans_date >= monthly,
+            StockcountSales.store_id == session["store"],
+            StockcountSales.ingredient == current_product.item_name,
+            StockcountSales.date >= eight_weeks,
         )
-        .group_by(InvSales.id)
+        .group_by(StockcountSales.dow)
+        .order_by(StockcountSales.dow)
     )
 
     daily_sales = []
@@ -453,11 +444,13 @@ def report_details(product):
     day_avg_sales = []
     for d in daily_sales:
         day_avg_sales.append(d)
-    avg_sales_day = []
-    avg_waste_day = []
-    for w in weekly_avg:
-        avg_sales_day.append(float(w.sales_avg))
-        avg_waste_day.append(float(w.waste_avg))
+    avg_sales_dow = []
+    max_sales_dow = []
+    min_sales_dow = []
+    for w in weekly_hi_low_sales:
+        avg_sales_dow.append(w.sales_avg)
+        max_sales_dow.append(w.sales_high)
+        min_sales_dow.append(w.sales_low)
 
     item_name = db.session.query(InvItems).filter(InvItems.id == product).first()
 
@@ -476,6 +469,7 @@ def report_details(product):
         unit_sales=unit_sales,
         unit_onhand=unit_onhand,
         day_avg_sales=day_avg_sales,
-        avg_sales_day=avg_sales_day,
-        avg_waste_day=avg_waste_day,
+        avg_sales_dow=avg_sales_dow,
+        max_sales_dow=max_sales_dow,
+        min_sales_dow=min_sales_dow,
     )

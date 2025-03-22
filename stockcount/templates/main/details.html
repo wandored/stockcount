@@ -145,10 +145,10 @@
             var barChart2 = new Chart(ctx, {
               type: "bar",
               data: {
-                labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                labels: ['Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'],
                 datasets: [{
                   label: "Daily Sales Average",
-                  data: {{ day_avg_sales | safe }},
+                  data: {{ avg_sales_dow | safe }},
                   fill: false,
                   backgroundColor: [
                    'rgba(255, 99, 132, 0.6)',
@@ -158,21 +158,21 @@
                   ],
                   borderWidth: 1
                 }, {
-                  label: "Average Sales/Day",
-                  data: {{ avg_sales_day | safe }},
-                  backgroundColor: 'rgba(0, 72, 186)',
-                  borderColor: 'rgb(0, 72, 186)',
-                  borderWidth: 1,
+                  label: "8Wk Max Sales",
+                  data: {{ max_sales_dow | safe }},
+                  borderColor: "#3e95cd",
+                  backgroundColor: "#7bb6dd",
+                  borderWidth: 0,
                   type: 'line',
-                  fill: false,
+                  fill: "+1",
                 }, {
-                  label: "Average Waste/Day",
-                  data: {{ avg_waste_day | safe }},
-                  backgroundColor: 'rgba(59, 122, 87)',
-                  borderColor: 'rgb(59, 122, 87)',
-                  borderWidth: 1,
+                  label: "8Wk Min Sales",
+                  data: {{ min_sales_dow | safe }},
+                  borderColor: "#3e95cd",
+                  backgroundColor: "#7bb6dd",
+                  borderWidth: 0,
                   type: 'line',
-                  fill: false,
+                  fill: "-1",
                 }] 
               },
               options: {
