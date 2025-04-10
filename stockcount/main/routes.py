@@ -66,9 +66,13 @@ def report():
 
     # convert the last_count to a date
     last_count = last_count.trans_date.strftime("%Y-%m-%d")
-    last_count = datetime.strptime(last_count, "%Y-%m-%d")
+    last_count = (datetime.strptime(last_count, "%Y-%m-%d")).date()
     today = (datetime.now() - timedelta(hours=4)).date()
     penaltimate_count = last_count - timedelta(days=1)
+    count_warning_date = today - timedelta(days=2)
+    missing_count_days = today - last_count
+    if last_count < count_warning_date:
+        flash(f"Your last count was {missing_count_days.days} days ago", "danger")
 
     items = (
         db.session.query(
@@ -246,7 +250,7 @@ def report_details(product):
             StockcountMonthly.date <= today,
         )
         .order_by(StockcountMonthly.date.desc())
-        .limit(7)
+        .limit(9)
     )
 
     purchase_list = (
@@ -407,6 +411,19 @@ def report_details(product):
         )
         for row in sales_list:
             unit_sales.append(int(row.total or 0))
+
+    # Ensure all three lists have exactly 8 items before trimming
+    if len(unit_sales) == 8 and len(unit_onhand) == 8 and len(labels) == 8:
+        if unit_sales[7] == 0 and unit_onhand[7] == 0:
+            # Drop the last item
+            unit_sales.pop()
+            unit_onhand.pop()
+            labels.pop()
+        else:
+            # Drop the first item
+            unit_sales.pop(0)
+            unit_onhand.pop(0)
+            labels.pop(0)
 
     # Chart #2
     sales_query = (
