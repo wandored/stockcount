@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from flask import flash, redirect, render_template, session, url_for
 from flask_security import current_user, login_required
@@ -21,6 +22,15 @@ from stockcount.models import (
     StockcountSales,
     StockcountWaste,
 )
+
+eastern = ZoneInfo("America/New_York")
+now = datetime.now(eastern)
+
+# If before 4 AM, consider it still "yesterday"
+if now.hour < 4:
+    business_day = (now - timedelta(days=1)).date()
+else:
+    business_day = now.date()
 
 
 @blueprint.route("/", methods=["GET", "POST"])
@@ -64,10 +74,14 @@ def report():
         )
         return redirect(url_for("counts_blueprint.count"))
 
+    if now.hour < 4:
+        today = (now - timedelta(days=1)).date()
+    else:
+        today = now.date()
+
     # convert the last_count to a date
     last_count = last_count.trans_date.strftime("%Y-%m-%d")
     last_count = (datetime.strptime(last_count, "%Y-%m-%d")).date()
-    today = (datetime.now() - timedelta(hours=4)).date()
     penaltimate_count = last_count - timedelta(days=1)
     count_warning_date = today - timedelta(days=2)
     missing_count_days = today - last_count
@@ -212,7 +226,12 @@ def report_details(product):
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
 
-    today = (datetime.now() - timedelta(hours=4)).date()
+    # today = (datetime.now() - timedelta(hours=4)).date()
+    if now.hour < 4:
+        today = (now - timedelta(days=1)).date()
+    else:
+        today = now.date()
+
     # Check if there is data for today
     has_count_today = (
         db.session.query(InvCount.trans_date)
