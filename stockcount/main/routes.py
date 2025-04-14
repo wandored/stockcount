@@ -24,13 +24,6 @@ from stockcount.models import (
 )
 
 eastern = ZoneInfo("America/New_York")
-now = datetime.now(eastern)
-
-# If before 4 AM, consider it still "yesterday"
-if now.hour < 4:
-    business_day = (now - timedelta(days=1)).date()
-else:
-    business_day = now.date()
 
 
 @blueprint.route("/", methods=["GET", "POST"])
@@ -46,6 +39,7 @@ def report():
     if session.get("store") is None or session.get("store") not in session["access"]:
         session["store"] = session["access"][0]
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
+    print(session["store"])
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -74,6 +68,7 @@ def report():
         )
         return redirect(url_for("counts_blueprint.count"))
 
+    now = datetime.now(eastern)
     if now.hour < 4:
         today = (now - timedelta(days=1)).date()
     else:
@@ -193,7 +188,10 @@ def report():
                 "variance": variance,
             }
         )
+        data_rows = sorted(data_rows, key=lambda x: x["variance"])
 
+    for row in data_rows:
+        print(row["item_name"], row["variance"])
     return render_template(
         "main/report.html",
         title="Variance-Daily",
@@ -226,7 +224,7 @@ def report_details(product):
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
 
-    # today = (datetime.now() - timedelta(hours=4)).date()
+    now = datetime.now(eastern)
     if now.hour < 4:
         today = (now - timedelta(days=1)).date()
     else:
