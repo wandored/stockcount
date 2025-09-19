@@ -12,9 +12,11 @@ jinja2
 pandas
 passlib
 psycopg2
+requests
 sqlalchemy
 uvicorn
 werkzeug
 wtforms
 wtforms-sqlalchemy
+os
 

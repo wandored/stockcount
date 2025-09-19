@@ -1,4 +1,9 @@
 from flask_security import current_user
+import base64
+import json
+import os
+import time
+import logging
 
 from stockcount.models import (
     InvCount,
@@ -16,15 +21,282 @@ from flask import session
 from sqlalchemy import or_, and_, not_
 from sqlalchemy.orm import joinedload
 
-from datetime import timedelta
+import datetime
 from stockcount import db
-
-from icecream import ic
-
-from collections import namedtuple
+import requests
+from collections import namedtuple, defaultdict
+from stockcount.config import Config
 
 # Define a namedtuple called 'MenuItem'
+
 MenuItem = namedtuple("MenuItem", ["menu_item", "recipe", "ingredient", "id"])
+
+
+def decode_jwt(token):
+    """Decode a JWT without verification just to extract the payload"""
+    payload = token.split(".")[1]
+    padded = payload + "=" * (-len(payload) % 4)  # JWT base64 padding
+    decoded_bytes = base64.urlsafe_b64decode(padded)
+    return json.loads(decoded_bytes)
+
+
+def get_access_token(api_access_url):
+    """
+    Fetches the OAuth2 access token required to authenticate API requests.
+    Always returns a dict with structure matching Toast's spec:
+    {
+        "token": {
+            "tokenType": "Bearer",
+            "scope": "...",
+            "expiresIn": int,
+            "accessToken": "...",
+            "idToken": "...",
+            "refreshToken": "..."
+        },
+        "status": "SUCCESS"
+    }
+    """
+    if os.path.exists(Config.TOKEN_CACHE_FILE):
+        with open(Config.TOKEN_CACHE_FILE) as f:
+            cache = json.load(f)
+            token_data = cache.get("token")
+            if isinstance(token_data, dict) and "token" in token_data:
+                access_token = token_data["token"].get("accessToken")
+                if access_token:
+                    payload = decode_jwt(access_token)
+                    exp = payload.get("exp", 0)
+                    if time.time() < exp - 60:
+                        return token_data
+
+    url = f"{api_access_url}/authentication/v1/authentication/login"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "userAccessType": Config.USER_ACCESS_TYPE,
+        "clientId": Config.CLIENT_ID,
+        "clientSecret": Config.CLIENT_SECRET,
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=data,
+    )
+    if response.ok:
+        token_data = response.json()
+        with open(Config.TOKEN_CACHE_FILE, "w") as f:
+            json.dump({"token": token_data}, f)
+        return token_data
+    else:
+        raise RuntimeError(
+            f"Failed to get access token: {response.status_code} {response.text}"
+        )
+
+
+def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
+    """Fetch all orders from /ordersBulk using page & pageSize pagination."""
+    all_orders = []
+    page = 1
+
+    while True:
+        query = params.copy()
+        query["pageSize"] = max_page_size
+        query["page"] = page
+
+        response = requests.get(url, headers=headers, params=query)
+        response.raise_for_status()
+        data = response.json()
+
+        if not isinstance(data, list):
+            raise ValueError("Expected a list of orders from /ordersBulk")
+
+        all_orders.extend(data)
+
+        if len(data) < max_page_size:
+            break  # last page reached
+
+        page += 1
+        time.sleep(rate_limit_wait)  # avoid hitting Toast’s rate limits
+
+    return all_orders
+
+
+def get_response_data(url, headers, params=None, rate_limit_wait=1.0):
+    """
+    Fetch data from a Toast API endpoint.
+    Handles both paginated list endpoints and single-object endpoints.
+    Returns:
+        Union[dict, list]: Either a dict (for non-paginated endpoints like /menus)
+                           or a list of dicts (for paginated endpoints like /orders).
+    """
+    results = []
+    page_token = None
+
+    while True:
+        request_params = params.copy() if params else {}
+        if page_token:
+            request_params["pageToken"] = page_token
+
+        response = requests.get(url, headers=headers, params=request_params)
+        if not response.ok:
+            raise RuntimeError(
+                f"API request failed: {response.status_code} {response.text}"
+            )
+
+        data = response.json()
+
+        # Case 1: The whole response is a list (e.g. some bulk endpoints)
+        if isinstance(data, list):
+            results.extend(data)
+
+        # Case 2: It's a dict and pagination header exists → assume paginated
+        elif isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    results.extend(value)
+                    break
+                else:
+                    # Non-paginated single object response (e.g. /menus)
+                    return data
+        # pagination handling
+        page_token = response.headers.get("X-Next-Page-Token")
+        if not page_token:
+            break
+
+        time.sleep(rate_limit_wait)
+
+    return results
+
+
+# def get_current_day_sales(store_id, item_name, today):
+#     """
+#     Retrieve the total quantity sold for a specific item at a store on a given day.
+#
+#     Args:
+#         store_id (int): The ID of the store.
+#         item_name (str): The display name of the item.
+#         today (datetime.date): The date for which to retrieve sales.
+#
+#     Returns:
+#         int: Total quantity sold for the item on the specified day.
+#     """
+#     today_str = today.strftime("%Y%m%d")
+#
+#     restaurant = Restaurants.query.filter_by(id=store_id).first()
+#     if not restaurant or not getattr(restaurant, "toast_guid", None):
+#         raise ValueError(f"Invalid store ID or missing Toast GUID: {store_id}")
+#
+#     guid = str(restaurant.toast_guid)
+#     api_access_url = Config.TOAST_API_ACCESS_URL
+#     token_data = get_access_token(api_access_url)
+#     if not isinstance(token_data, dict):
+#         raise TypeError("Expected token to be a dictionary")
+#     access_token = token_data["token"]["accessToken"]
+#
+#     url = f"{api_access_url}/orders/v2/ordersBulk"
+#     query = {
+#         "businessDate": today_str,
+#     }
+#     headers = {
+#         "Toast-Restaurant-External-ID": guid,
+#         "Authorization": f"Bearer {access_token}",
+#     }
+#
+#     try:
+#         payload = get_bulk_orders(url, headers, params=query)
+#     except Exception as e:
+#         print(f"Error fetching sales data: {e}")
+#         return 0
+#
+#     total_count = 0
+#     for order in payload:
+#         checks = order.get("checks", [])
+#         for check in checks:
+#             selections = check.get("selections", [])
+#             for sel in selections:
+#                 if sel.get("voided", False):
+#                     continue
+#                 if sel.get("displayName") == item_name:
+#                     quantity = sel.get("quantity", 0) or 0
+#                     total_count += int(quantity)
+#
+#     return total_count
+
+
+def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
+    """
+    Fetch sales for a given Toast business date.
+
+    Args:
+        store_id (int): Store ID.
+        unique_items (list[str]): Menu items to filter.
+        business_date (date, optional): Business date for Toast query.
+                                        Defaults to today's calendar date.
+
+    Returns:
+        dict: {menuitem_name: {"count": int, "item_name": str}, ...}
+    """
+    if businessDate is None:
+        businessDate = datetime.date.today()
+
+    business_date_str = businessDate.strftime("%Y%m%d")
+    print(f"Fetching sales for {business_date_str}")
+
+    restaurant = Restaurants.query.filter_by(id=store_id).first()
+    if not restaurant or not getattr(restaurant, "toast_guid", None):
+        raise ValueError(f"Invalid store ID or missing Toast GUID: {store_id}")
+    guid = str(restaurant.toast_guid)
+
+    api_access_url = Config.TOAST_API_ACCESS_URL
+    token_data = get_access_token(api_access_url)
+    if not isinstance(token_data, dict):
+        raise TypeError("Expected token to be a dictionary")
+    access_token = token_data["token"]["accessToken"]
+
+    url = f"{api_access_url}/orders/v2/ordersBulk"
+    query = {
+        "businessDate": business_date_str,
+    }
+    headers = {
+        "Toast-Restaurant-External-ID": guid,
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    try:
+        payload = get_bulk_orders(url, headers, params=query)
+    except Exception as e:
+        print(f"Error fetching sales data: {e}")
+        return 0
+
+    item_counts = defaultdict(lambda: {"count": 0, "item_name": ""})
+
+    def process_selection(sel):
+        """Recursively process a selection and any nested children."""
+        if sel.get("voided", False):
+            return
+
+        item_name = sel.get("displayName", "Unknown Item")
+        quantity = sel.get("quantity", 0) or 0
+
+        item_counts[item_name]["count"] += quantity
+        if not item_counts[item_name]["item_name"]:
+            item_counts[item_name]["item_name"] = item_name
+
+        # Recurse into nested selections (casual combos often nest here)
+        for child in sel.get("selections", []):
+            process_selection(child)
+
+    for order in payload:
+        for check in order.get("checks", []):
+            for sel in check.get("selections", []):
+                process_selection(sel)
+
+    item_counts = {
+        name: item_counts[name] for name in unique_items if name in item_counts
+    }
+    for item in item_counts.values():
+        print(f"Item: {item['item_name']}, Count: {item['count']}")
+
+    return dict(item_counts)
 
 
 def set_user_access():
@@ -32,7 +304,6 @@ def set_user_access():
     # get number of stores user has access to and store id in a list
     access = []
     for store in store_list.stores:
-        # print(store.id)
         if store.id in [99, 98]:
             access = [3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
             return access
@@ -91,7 +362,6 @@ def menu_item_query():
     missing = [item for item in initial_results if item.menu_item is None]
     result = [item for item in initial_results if item.menu_item is not None]
 
-    # ic(missing)
     for item in missing:
         # Fetch the menu_item from RecipeIngredients and extract the value
         menu_item_result = (
@@ -119,8 +389,6 @@ def menu_item_query():
             .scalar()
         )
 
-        # ic(menu_item_result, item.recipe, item.ingredient, id_result, session["store"])
-
         # Add a new row to result for each menu_item_result using the same recipe, ingredient, and id
         for menu_item in menu_item_result:
             result.append(
@@ -138,7 +406,6 @@ def menu_item_query():
     menu_items = [menu_item[0] for menu_item in menu_items]
     result = [item for item in result if item.menu_item not in menu_items]
 
-    # ic(result)
     return result
 
 
@@ -229,9 +496,6 @@ def getTheory(item_name, date):
     else:
         waste = waste[0]
 
-    print(
-        f"{begin_count + purchases - sales - waste} = {begin_count} + {purchases} - {sales} - {waste}"
-    )
     theory = begin_count + purchases - sales - waste
 
     return theory
