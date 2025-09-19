@@ -60,6 +60,8 @@ class Restaurants(db.Model):
     name = db.Column(db.String(64), unique=True)
     toast_id = db.Column(db.Integer)
     active = db.Column(db.Boolean())
+    concept = db.Column(db.String(64))
+    toast_guid = db.Column(db.String(64))
 
     # __str__ is required by Flask-Admin, so we can have human-readable values for Restaurants when editing a User.
     def __str__(self):
