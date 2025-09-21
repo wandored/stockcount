@@ -14,6 +14,7 @@ from stockcount.main import blueprint
 from stockcount.main.utils import (
     set_user_access,
     get_current_day_menu_item_sales,
+    get_current_day_ingredient_usage,
 )
 from stockcount.models import (
     InvCount,
@@ -122,33 +123,20 @@ def report():
     # --- Bulk fetch sales ---
     sales_map = {}
     unique_items = [item.item_name for item in items]
+
     if now.hour >= 21:
-        # after 9pm, get Toast sales for today
-        sales_dict = get_current_day_menu_item_sales(
-            session["store"], unique_items, today
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, today, use_toast=True
         )
-        sales_map = sales_dict.get("item_counts", {})
-    elif now.hour < 8:
-        # before 8am, get Toast sales for yesterday
+    elif now.hour < 9:
         yesterday = today - timedelta(days=1)
-        sales_dict = get_current_day_menu_item_sales(
-            session["store"], unique_items, yesterday
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, yesterday, use_toast=True
         )
-        sales_map = sales_dict.get("item_counts", {})
     else:
-        # business hours: pull from R365
-        sales_results = (
-            db.session.query(
-                StockcountSales.ingredient, func.sum(StockcountSales.count_usage)
-            )
-            .filter(
-                StockcountSales.store_id == session["store"],
-                StockcountSales.date == last_count,
-            )
-            .group_by(StockcountSales.ingredient)
-            .all()
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, last_count, use_toast=False
         )
-        sales_map = {ingredient: count for ingredient, count in sales_results}
 
     # --- Build data rows ---
     data_rows = []
@@ -198,101 +186,6 @@ def report():
 
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
-
-    # data_rows = []
-    # for item in items:
-    #     # build theory table
-    #     current_count = (
-    #         db.session.query(
-    #             StockcountMonthly.count_total,
-    #         )
-    #         .filter(
-    #             StockcountMonthly.store_id == session["store"],
-    #             StockcountMonthly.item_id == item.id,
-    #             StockcountMonthly.date == last_count,
-    #         )
-    #         .first()
-    #     )
-    #     previous_count = (
-    #         db.session.query(
-    #             StockcountMonthly.count_total,
-    #         )
-    #         .filter(
-    #             StockcountMonthly.store_id == session["store"],
-    #             StockcountMonthly.item_id == item.id,
-    #             StockcountMonthly.date == penaltimate_count,
-    #         )
-    #         .first()
-    #     )
-    #     purchases = (
-    #         db.session.query(func.sum(StockcountPurchases.unit_count))
-    #         .filter(
-    #             StockcountPurchases.store_id == session["store"],
-    #             StockcountPurchases.item == item.item_name,
-    #             StockcountPurchases.date == last_count,
-    #         )
-    #         .scalar()
-    #     )
-    #     # If the current time is after 9pm or before 8am, get sales for last business date
-    #     if now.hour >= 21:
-    #         sales_dict = get_current_day_menu_item_sales(
-    #             session["store"], item.item_name, today
-    #         )
-    #         sales = sales_dict.get("item_counts", 0)
-    #
-    #     elif now.hour < 8:
-    #         # use Yesterday's sales
-    #         yesterday = today - timedelta(days=1)
-    #         sales = get_current_day_menu_item_sales(
-    #             session["store"], item.item_name, yesterday
-    #         )
-    #     else:
-    #         sales = (
-    #             db.session.query(func.sum(StockcountSales.count_usage))
-    #             .filter(
-    #                 StockcountSales.store_id == session["store"],
-    #                 StockcountSales.ingredient == item.item_name,
-    #                 StockcountSales.date == last_count,
-    #             )
-    #             .scalar()
-    #         )
-    #     print(sales)
-    #     waste = (
-    #         db.session.query(func.sum(StockcountWaste.quantity))
-    #         .filter(
-    #             StockcountWaste.store_id == session["store"],
-    #             StockcountWaste.item == item.item_name,
-    #             StockcountWaste.date == last_count,
-    #         )
-    #         .scalar()
-    #     )
-    #
-    #     # Handle None valies
-    #     current_count = current_count[0] if current_count is not None else 0
-    #     previous_count = previous_count[0] if previous_count is not None else 0
-    #     purchases = purchases if purchases is not None else 0
-    #     sales = sales if sales is not None else 0
-    #     waste = waste if waste is not None else 0
-    #
-    #     # Calculate theory and variance
-    #     theory = previous_count + purchases - sales - waste
-    #     variance = current_count - theory
-    #
-    #     data_rows.append(
-    #         {
-    #             "date": last_count,
-    #             "item_name": item.item_name,
-    #             "item_id": item.id,
-    #             "begin": previous_count,
-    #             "purchases": purchases,
-    #             "sales": sales,
-    #             "waste": waste,
-    #             "theory": theory,
-    #             "count": current_count,
-    #             "variance": variance,
-    #         }
-    #     )
-    #     data_rows = sorted(data_rows, key=lambda x: x["variance"])
 
     return render_template(
         "main/report.html",

@@ -120,51 +120,51 @@ def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
     return all_orders
 
 
-def get_response_data(url, headers, params=None, rate_limit_wait=1.0):
-    """
-    Fetch data from a Toast API endpoint.
-    Handles both paginated list endpoints and single-object endpoints.
-    Returns:
-        Union[dict, list]: Either a dict (for non-paginated endpoints like /menus)
-                           or a list of dicts (for paginated endpoints like /orders).
-    """
-    results = []
-    page_token = None
-
-    while True:
-        request_params = params.copy() if params else {}
-        if page_token:
-            request_params["pageToken"] = page_token
-
-        response = requests.get(url, headers=headers, params=request_params)
-        if not response.ok:
-            raise RuntimeError(
-                f"API request failed: {response.status_code} {response.text}"
-            )
-
-        data = response.json()
-
-        # Case 1: The whole response is a list (e.g. some bulk endpoints)
-        if isinstance(data, list):
-            results.extend(data)
-
-        # Case 2: It's a dict and pagination header exists → assume paginated
-        elif isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, list):
-                    results.extend(value)
-                    break
-                else:
-                    # Non-paginated single object response (e.g. /menus)
-                    return data
-        # pagination handling
-        page_token = response.headers.get("X-Next-Page-Token")
-        if not page_token:
-            break
-
-        time.sleep(rate_limit_wait)
-
-    return results
+# def get_response_data(url, headers, params=None, rate_limit_wait=1.0):
+#     """
+#     Fetch data from a Toast API endpoint.
+#     Handles both paginated list endpoints and single-object endpoints.
+#     Returns:
+#         Union[dict, list]: Either a dict (for non-paginated endpoints like /menus)
+#                            or a list of dicts (for paginated endpoints like /orders).
+#     """
+#     results = []
+#     page_token = None
+#
+#     while True:
+#         request_params = params.copy() if params else {}
+#         if page_token:
+#             request_params["pageToken"] = page_token
+#
+#         response = requests.get(url, headers=headers, params=request_params)
+#         if not response.ok:
+#             raise RuntimeError(
+#                 f"API request failed: {response.status_code} {response.text}"
+#             )
+#
+#         data = response.json()
+#
+#         # Case 1: The whole response is a list (e.g. some bulk endpoints)
+#         if isinstance(data, list):
+#             results.extend(data)
+#
+#         # Case 2: It's a dict and pagination header exists → assume paginated
+#         elif isinstance(data, dict):
+#             for key, value in data.items():
+#                 if isinstance(value, list):
+#                     results.extend(value)
+#                     break
+#                 else:
+#                     # Non-paginated single object response (e.g. /menus)
+#                     return data
+#         # pagination handling
+#         page_token = response.headers.get("X-Next-Page-Token")
+#         if not page_token:
+#             break
+#
+#         time.sleep(rate_limit_wait)
+#
+#     return results
 
 
 # def get_current_day_sales(store_id, item_name, today):
@@ -239,7 +239,6 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
         businessDate = datetime.date.today()
 
     business_date_str = businessDate.strftime("%Y%m%d")
-    print(f"Fetching sales for {business_date_str}")
 
     restaurant = Restaurants.query.filter_by(id=store_id).first()
     if not restaurant or not getattr(restaurant, "toast_guid", None):
@@ -297,6 +296,84 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
         print(f"Item: {item['item_name']}, Count: {item['count']}")
 
     return dict(item_counts)
+
+
+def get_current_day_ingredient_usage(
+    store_id, target_ingredients, business_date, use_toast=False
+):
+    """
+    Get ingredient usage for a given store and business date.
+
+    Args:
+        store_id (int): Store ID.
+        target_ingredients (list[str]): Ingredients to include in the result.
+        business_date (date): Date for which to calculate usage.
+        use_toast (bool): If True, pull menuitem sales from Toast; otherwise use StockcountSales (R365).
+
+    Returns:
+        dict: {ingredient_name: usage_count}
+    """
+    usage_map = defaultdict(float)
+
+    if use_toast:
+        # Step 1: get menuitem sales from Toast
+        unique_items = (
+            row.menuitem
+            for row in db.session.query(StockcountSales.menuitem)
+            .filter(StockcountSales.store_id == store_id)
+            .distinct()
+        )
+        sales_dict = get_current_day_menu_item_sales(
+            store_id, list(unique_items), business_date
+        )
+        menuitem_sales = {name: data["count"] for name, data in sales_dict.items()}
+
+        if not menuitem_sales:
+            return {}
+
+        # Step 2: get count_usage per menuitem → ingredient from StockcountSales
+        rows = (
+            db.session.query(
+                StockcountSales.menuitem,
+                StockcountSales.ingredient,
+                StockcountSales.count_usage,
+            )
+            .filter(
+                StockcountSales.store_id == store_id,
+                StockcountSales.menuitem.in_(menuitem_sales.keys()),
+                StockcountSales.date == business_date,
+            )
+            .all()
+        )
+
+        # Step 3: sum count_usage per ingredient (no multiplication needed)
+        for menu_item, ingredient, count_usage in rows:
+            usage_map[ingredient] += count_usage
+
+    else:
+        # Business hours: just sum count_usage from StockcountSales
+        rows = (
+            db.session.query(
+                StockcountSales.ingredient, func.sum(StockcountSales.count_usage)
+            )
+            .filter(
+                StockcountSales.store_id == store_id,
+                StockcountSales.date == business_date,
+                StockcountSales.ingredient.in_(target_ingredients),
+            )
+            .group_by(StockcountSales.ingredient)
+            .all()
+        )
+        for ingredient, total_usage in rows:
+            usage_map[ingredient] = total_usage
+
+    # Filter to only target ingredients if provided
+    if target_ingredients:
+        usage_map = {
+            ing: usage for ing, usage in usage_map.items() if ing in target_ingredients
+        }
+
+    return dict(usage_map)
 
 
 def set_user_access():
