@@ -319,6 +319,20 @@ class RecipeIngredients(db.Model):
     __table_args__ = (PrimaryKeyConstraint("menu_item", "recipe", "ingredient"),)
 
 
+class ItemConversion(db.Model):
+    __tablename__ = "item_conversion"
+
+    item_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    weight_qty = db.Column(db.Float)
+    weight_uofm = db.Column(db.String)
+    volume_qty = db.Column(db.Float)
+    volume_uofm = db.Column(db.String)
+    each_qty = db.Column(db.Float)
+    each_uofm = db.Column(db.String)
+    measure_type = db.Column(db.String)
+
+
 class MenuItems(db.Model):
     __tablename__ = "inv_menu_items"
 

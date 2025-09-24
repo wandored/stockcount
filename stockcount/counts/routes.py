@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 
 from flask import flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
-from icecream import ic
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from zoneinfo import ZoneInfo
@@ -45,17 +44,18 @@ def count():
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     page = request.args.get("page", 1, type=int)
     inv_items = InvCount.query.filter(InvCount.store_id == session["store"]).all()
-    count_dates = (
+
+    ordered_items = (
         db.session.query(
             InvCount.trans_date,
             InvCount.count_time,
         )
         .filter(InvCount.store_id == session["store"])
         .group_by(InvCount.trans_date, InvCount.count_time)
+        .order_by(InvCount.trans_date.desc(), InvCount.count_time.desc())
+        .limit(7)
+        .all()
     )
-    ordered_items = count_dates.order_by(
-        InvCount.trans_date.desc(), InvCount.count_time.desc()
-    ).paginate(page=page, per_page=10)
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -475,13 +475,15 @@ def sales():
     page = request.args.get("page", 1, type=int)
 
     # paginate over just the dates
-    sales_dates = (
+    ordered_sales = (
         db.session.query(StockcountSales.date)
         .filter_by(store_id=store_id)
         .group_by(StockcountSales.date)
         .order_by(StockcountSales.date.desc())
+        .limit(7)
+        .all()
     )
-    ordered_sales = sales_dates.paginate(page=page, per_page=7)
+    # ordered_sales = sales_dates.paginate(page=page, per_page=7)
 
     # pull all menuitem + counts for the dates in this page
     sales_items = (
@@ -492,7 +494,7 @@ def sales():
         )
         .filter(
             StockcountSales.store_id == store_id,
-            StockcountSales.date.in_([d.date for d in ordered_sales.items]),
+            StockcountSales.date.in_([d.date for d in ordered_sales]),
         )
         .group_by(StockcountSales.date, StockcountSales.menuitem)
         .all()

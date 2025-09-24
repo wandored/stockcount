@@ -14,12 +14,16 @@ from stockcount.main import blueprint
 from stockcount.main.utils import (
     set_user_access,
     get_current_day_menu_item_sales,
+    get_current_day_ingredient_usage,
 )
 from stockcount.models import (
     InvCount,
     InvItems,
     InvSales,
+    ItemConversion,
+    UnitsOfMeasure,
     Restaurants,
+    RecipeIngredients,
     StockcountMonthly,
     StockcountPurchases,
     StockcountSales,
@@ -122,33 +126,20 @@ def report():
     # --- Bulk fetch sales ---
     sales_map = {}
     unique_items = [item.item_name for item in items]
+
     if now.hour >= 21:
-        # after 9pm, get Toast sales for today
-        sales_dict = get_current_day_menu_item_sales(
-            session["store"], unique_items, today
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, today, use_toast=True
         )
-        sales_map = sales_dict.get("item_counts", {})
-    elif now.hour < 8:
-        # before 8am, get Toast sales for yesterday
+    elif now.hour < 9:
         yesterday = today - timedelta(days=1)
-        sales_dict = get_current_day_menu_item_sales(
-            session["store"], unique_items, yesterday
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, yesterday, use_toast=True
         )
-        sales_map = sales_dict.get("item_counts", {})
     else:
-        # business hours: pull from R365
-        sales_results = (
-            db.session.query(
-                StockcountSales.ingredient, func.sum(StockcountSales.count_usage)
-            )
-            .filter(
-                StockcountSales.store_id == session["store"],
-                StockcountSales.date == last_count,
-            )
-            .group_by(StockcountSales.ingredient)
-            .all()
+        sales_map = get_current_day_ingredient_usage(
+            session["store"], unique_items, last_count, use_toast=False
         )
-        sales_map = {ingredient: count for ingredient, count in sales_results}
 
     # --- Build data rows ---
     data_rows = []
@@ -199,101 +190,6 @@ def report():
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
 
-    # data_rows = []
-    # for item in items:
-    #     # build theory table
-    #     current_count = (
-    #         db.session.query(
-    #             StockcountMonthly.count_total,
-    #         )
-    #         .filter(
-    #             StockcountMonthly.store_id == session["store"],
-    #             StockcountMonthly.item_id == item.id,
-    #             StockcountMonthly.date == last_count,
-    #         )
-    #         .first()
-    #     )
-    #     previous_count = (
-    #         db.session.query(
-    #             StockcountMonthly.count_total,
-    #         )
-    #         .filter(
-    #             StockcountMonthly.store_id == session["store"],
-    #             StockcountMonthly.item_id == item.id,
-    #             StockcountMonthly.date == penaltimate_count,
-    #         )
-    #         .first()
-    #     )
-    #     purchases = (
-    #         db.session.query(func.sum(StockcountPurchases.unit_count))
-    #         .filter(
-    #             StockcountPurchases.store_id == session["store"],
-    #             StockcountPurchases.item == item.item_name,
-    #             StockcountPurchases.date == last_count,
-    #         )
-    #         .scalar()
-    #     )
-    #     # If the current time is after 9pm or before 8am, get sales for last business date
-    #     if now.hour >= 21:
-    #         sales_dict = get_current_day_menu_item_sales(
-    #             session["store"], item.item_name, today
-    #         )
-    #         sales = sales_dict.get("item_counts", 0)
-    #
-    #     elif now.hour < 8:
-    #         # use Yesterday's sales
-    #         yesterday = today - timedelta(days=1)
-    #         sales = get_current_day_menu_item_sales(
-    #             session["store"], item.item_name, yesterday
-    #         )
-    #     else:
-    #         sales = (
-    #             db.session.query(func.sum(StockcountSales.count_usage))
-    #             .filter(
-    #                 StockcountSales.store_id == session["store"],
-    #                 StockcountSales.ingredient == item.item_name,
-    #                 StockcountSales.date == last_count,
-    #             )
-    #             .scalar()
-    #         )
-    #     print(sales)
-    #     waste = (
-    #         db.session.query(func.sum(StockcountWaste.quantity))
-    #         .filter(
-    #             StockcountWaste.store_id == session["store"],
-    #             StockcountWaste.item == item.item_name,
-    #             StockcountWaste.date == last_count,
-    #         )
-    #         .scalar()
-    #     )
-    #
-    #     # Handle None valies
-    #     current_count = current_count[0] if current_count is not None else 0
-    #     previous_count = previous_count[0] if previous_count is not None else 0
-    #     purchases = purchases if purchases is not None else 0
-    #     sales = sales if sales is not None else 0
-    #     waste = waste if waste is not None else 0
-    #
-    #     # Calculate theory and variance
-    #     theory = previous_count + purchases - sales - waste
-    #     variance = current_count - theory
-    #
-    #     data_rows.append(
-    #         {
-    #             "date": last_count,
-    #             "item_name": item.item_name,
-    #             "item_id": item.id,
-    #             "begin": previous_count,
-    #             "purchases": purchases,
-    #             "sales": sales,
-    #             "waste": waste,
-    #             "theory": theory,
-    #             "count": current_count,
-    #             "variance": variance,
-    #         }
-    #     )
-    #     data_rows = sorted(data_rows, key=lambda x: x["variance"])
-
     return render_template(
         "main/report.html",
         title="Variance-Daily",
@@ -331,29 +227,6 @@ def report_details(product):
         today = (now - timedelta(days=1)).date()
     else:
         today = now.date()
-
-    # Check if there is data for today
-    has_count_today = (
-        db.session.query(InvCount.trans_date)
-        .filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == product,
-            InvCount.trans_date == today,
-        )
-        .first()
-        is not None
-    )
-
-    has_sales_today = (
-        db.session.query(InvSales.trans_date)
-        .filter(
-            InvSales.store_id == session["store"],
-            InvSales.item_id == product,
-            InvSales.trans_date == today,
-        )
-        .first()
-        is not None
-    )
 
     # set end_date to today() - 1
     end_date = datetime.now().date() - timedelta(days=1)
@@ -425,26 +298,17 @@ def report_details(product):
     waste_data = {waste.date: abs(int(waste.base_qty)) for waste in waste_list}
 
     count_list = list(count_list)
+    count_map = {count.date: count.count_total for count in count_list}
 
     # Initialize variables to keep track of previous_total
     details = []
 
-    # Determine the start date
-    if has_count_today:
-        start_date = today
-    else:
-        start_date = today - timedelta(days=1)
+    start_date = today
 
     # Iterate over the last 7 days starting from the start_date
     for day in range(8):
         current_date = start_date - timedelta(days=day)
-        count = next((c for c in count_list if c.date == current_date), None)
-
-        # account for days without a count
-        if count:
-            count_total = count.count_total
-        else:
-            count_total = 0
+        count_total = count_map.get(current_date, 0)  # Default to 0 to
 
         # Create a dictionary with trans_date and count_total
         detail = {
@@ -458,17 +322,63 @@ def report_details(product):
             "previous_total": 0,
         }
 
-        # if its the last day, get the sales and waste from InvSales
-        if current_date == today and has_sales_today:
-            sales_end = db.session.query(InvSales.each_count, InvSales.waste).filter(
-                InvSales.store_id == session["store"],
-                InvSales.item_id == product,
-                InvSales.trans_date == current_date,
+        if current_date == today:
+            # Helper function for conversion calculation
+            def get_each_conversion(row):
+                if row.uofm == getattr(row, "weight_uofm", None) and getattr(
+                    row, "weight_qty", None
+                ):
+                    return row.qty / row.weight_qty * (row.each_qty or 1)
+                elif row.uofm == getattr(row, "volume_uofm", None) and getattr(
+                    row, "volume_qty", None
+                ):
+                    return row.qty / row.volume_qty * (row.each_qty or 1)
+                elif row.uofm == row.each_uofm and row.each_qty:
+                    return row.qty / row.each_qty
+                else:
+                    # Optionally log missing conversion
+                    return 0
+
+            # get list of menu items that use this ingredient, with recipe + conversion info
+            menu_items_query = (
+                db.session.query(
+                    RecipeIngredients.menu_item,
+                    RecipeIngredients.qty,
+                    RecipeIngredients.uofm,
+                    ItemConversion.weight_qty,
+                    ItemConversion.weight_uofm,
+                    ItemConversion.each_qty,
+                    ItemConversion.each_uofm,
+                )
+                .join(
+                    ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
+                )
+                .filter(RecipeIngredients.ingredient == current_product.item_name)
+                .distinct()
             )
-            for sale in sales_end:
-                detail["sales_count"] = sale.each_count
-                detail["sales_waste"] = sale.waste
-        # Append the current detail to the details list
+
+            # build dict of conversions per menu item
+            each_conversions = {}
+            menu_items = []
+            for row in menu_items_query:
+                menu_items.append(row.menu_item)
+                each_conversions[row.menu_item] = get_each_conversion(row)
+
+            # get Toast sales for today
+            toast_sales = get_current_day_menu_item_sales(
+                store_id=session["store"],
+                unique_items=menu_items,
+                businessDate=today,
+            )
+
+            total_count_usage = sum(
+                toast_sales.get(menu_item, {}).get("count", 0) * conversion
+                for menu_item, conversion in each_conversions.items()
+            )
+
+            detail["sales_count"] = round(total_count_usage)
+            detail["sales_waste"] = 0  # No waste data for current day
+
         details.append(detail)
 
     for i in range(0, len(details) - 1):
