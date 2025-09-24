@@ -20,7 +20,10 @@ from stockcount.models import (
     InvCount,
     InvItems,
     InvSales,
+    ItemConversion,
+    UnitsOfMeasure,
     Restaurants,
+    RecipeIngredients,
     StockcountMonthly,
     StockcountPurchases,
     StockcountSales,
@@ -225,29 +228,6 @@ def report_details(product):
     else:
         today = now.date()
 
-    # Check if there is data for today
-    has_count_today = (
-        db.session.query(InvCount.trans_date)
-        .filter(
-            InvCount.store_id == session["store"],
-            InvCount.item_id == product,
-            InvCount.trans_date == today,
-        )
-        .first()
-        is not None
-    )
-
-    has_sales_today = (
-        db.session.query(InvSales.trans_date)
-        .filter(
-            InvSales.store_id == session["store"],
-            InvSales.item_id == product,
-            InvSales.trans_date == today,
-        )
-        .first()
-        is not None
-    )
-
     # set end_date to today() - 1
     end_date = datetime.now().date() - timedelta(days=1)
     weekly = end_date - timedelta(days=6)
@@ -318,26 +298,17 @@ def report_details(product):
     waste_data = {waste.date: abs(int(waste.base_qty)) for waste in waste_list}
 
     count_list = list(count_list)
+    count_map = {count.date: count.count_total for count in count_list}
 
     # Initialize variables to keep track of previous_total
     details = []
 
-    # Determine the start date
-    if has_count_today:
-        start_date = today
-    else:
-        start_date = today - timedelta(days=1)
+    start_date = today
 
     # Iterate over the last 7 days starting from the start_date
     for day in range(8):
         current_date = start_date - timedelta(days=day)
-        count = next((c for c in count_list if c.date == current_date), None)
-
-        # account for days without a count
-        if count:
-            count_total = count.count_total
-        else:
-            count_total = 0
+        count_total = count_map.get(current_date, 0)  # Default to 0 to
 
         # Create a dictionary with trans_date and count_total
         detail = {
@@ -351,17 +322,63 @@ def report_details(product):
             "previous_total": 0,
         }
 
-        # if its the last day, get the sales and waste from InvSales
-        if current_date == today and has_sales_today:
-            sales_end = db.session.query(InvSales.each_count, InvSales.waste).filter(
-                InvSales.store_id == session["store"],
-                InvSales.item_id == product,
-                InvSales.trans_date == current_date,
+        if current_date == today:
+            # Helper function for conversion calculation
+            def get_each_conversion(row):
+                if row.uofm == getattr(row, "weight_uofm", None) and getattr(
+                    row, "weight_qty", None
+                ):
+                    return row.qty / row.weight_qty * (row.each_qty or 1)
+                elif row.uofm == getattr(row, "volume_uofm", None) and getattr(
+                    row, "volume_qty", None
+                ):
+                    return row.qty / row.volume_qty * (row.each_qty or 1)
+                elif row.uofm == row.each_uofm and row.each_qty:
+                    return row.qty / row.each_qty
+                else:
+                    # Optionally log missing conversion
+                    return 0
+
+            # get list of menu items that use this ingredient, with recipe + conversion info
+            menu_items_query = (
+                db.session.query(
+                    RecipeIngredients.menu_item,
+                    RecipeIngredients.qty,
+                    RecipeIngredients.uofm,
+                    ItemConversion.weight_qty,
+                    ItemConversion.weight_uofm,
+                    ItemConversion.each_qty,
+                    ItemConversion.each_uofm,
+                )
+                .join(
+                    ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
+                )
+                .filter(RecipeIngredients.ingredient == current_product.item_name)
+                .distinct()
             )
-            for sale in sales_end:
-                detail["sales_count"] = sale.each_count
-                detail["sales_waste"] = sale.waste
-        # Append the current detail to the details list
+
+            # build dict of conversions per menu item
+            each_conversions = {}
+            menu_items = []
+            for row in menu_items_query:
+                menu_items.append(row.menu_item)
+                each_conversions[row.menu_item] = get_each_conversion(row)
+
+            # get Toast sales for today
+            toast_sales = get_current_day_menu_item_sales(
+                store_id=session["store"],
+                unique_items=menu_items,
+                businessDate=today,
+            )
+
+            total_count_usage = sum(
+                toast_sales.get(menu_item, {}).get("count", 0) * conversion
+                for menu_item, conversion in each_conversions.items()
+            )
+
+            detail["sales_count"] = round(total_count_usage)
+            detail["sales_waste"] = 0  # No waste data for current day
+
         details.append(detail)
 
     for i in range(0, len(details) - 1):

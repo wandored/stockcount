@@ -18,7 +18,7 @@ from stockcount.models import (
     MenuItems,
 )
 from flask import session
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import joinedload
 
 import datetime
@@ -120,108 +120,6 @@ def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
     return all_orders
 
 
-# def get_response_data(url, headers, params=None, rate_limit_wait=1.0):
-#     """
-#     Fetch data from a Toast API endpoint.
-#     Handles both paginated list endpoints and single-object endpoints.
-#     Returns:
-#         Union[dict, list]: Either a dict (for non-paginated endpoints like /menus)
-#                            or a list of dicts (for paginated endpoints like /orders).
-#     """
-#     results = []
-#     page_token = None
-#
-#     while True:
-#         request_params = params.copy() if params else {}
-#         if page_token:
-#             request_params["pageToken"] = page_token
-#
-#         response = requests.get(url, headers=headers, params=request_params)
-#         if not response.ok:
-#             raise RuntimeError(
-#                 f"API request failed: {response.status_code} {response.text}"
-#             )
-#
-#         data = response.json()
-#
-#         # Case 1: The whole response is a list (e.g. some bulk endpoints)
-#         if isinstance(data, list):
-#             results.extend(data)
-#
-#         # Case 2: It's a dict and pagination header exists → assume paginated
-#         elif isinstance(data, dict):
-#             for key, value in data.items():
-#                 if isinstance(value, list):
-#                     results.extend(value)
-#                     break
-#                 else:
-#                     # Non-paginated single object response (e.g. /menus)
-#                     return data
-#         # pagination handling
-#         page_token = response.headers.get("X-Next-Page-Token")
-#         if not page_token:
-#             break
-#
-#         time.sleep(rate_limit_wait)
-#
-#     return results
-
-
-# def get_current_day_sales(store_id, item_name, today):
-#     """
-#     Retrieve the total quantity sold for a specific item at a store on a given day.
-#
-#     Args:
-#         store_id (int): The ID of the store.
-#         item_name (str): The display name of the item.
-#         today (datetime.date): The date for which to retrieve sales.
-#
-#     Returns:
-#         int: Total quantity sold for the item on the specified day.
-#     """
-#     today_str = today.strftime("%Y%m%d")
-#
-#     restaurant = Restaurants.query.filter_by(id=store_id).first()
-#     if not restaurant or not getattr(restaurant, "toast_guid", None):
-#         raise ValueError(f"Invalid store ID or missing Toast GUID: {store_id}")
-#
-#     guid = str(restaurant.toast_guid)
-#     api_access_url = Config.TOAST_API_ACCESS_URL
-#     token_data = get_access_token(api_access_url)
-#     if not isinstance(token_data, dict):
-#         raise TypeError("Expected token to be a dictionary")
-#     access_token = token_data["token"]["accessToken"]
-#
-#     url = f"{api_access_url}/orders/v2/ordersBulk"
-#     query = {
-#         "businessDate": today_str,
-#     }
-#     headers = {
-#         "Toast-Restaurant-External-ID": guid,
-#         "Authorization": f"Bearer {access_token}",
-#     }
-#
-#     try:
-#         payload = get_bulk_orders(url, headers, params=query)
-#     except Exception as e:
-#         print(f"Error fetching sales data: {e}")
-#         return 0
-#
-#     total_count = 0
-#     for order in payload:
-#         checks = order.get("checks", [])
-#         for check in checks:
-#             selections = check.get("selections", [])
-#             for sel in selections:
-#                 if sel.get("voided", False):
-#                     continue
-#                 if sel.get("displayName") == item_name:
-#                     quantity = sel.get("quantity", 0) or 0
-#                     total_count += int(quantity)
-#
-#     return total_count
-
-
 def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
     """
     Fetch sales for a given Toast business date.
@@ -292,8 +190,8 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
     item_counts = {
         name: item_counts[name] for name in unique_items if name in item_counts
     }
-    for item in item_counts.values():
-        print(f"Item: {item['item_name']}, Count: {item['count']}")
+    # for item in item_counts.values():
+    #     print(f"Item: {item['item_name']}, Count: {item['count']}")
 
     return dict(item_counts)
 
