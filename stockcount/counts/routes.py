@@ -105,7 +105,6 @@ def count():
                 trans_date=multi_form.transdate.data,
                 count_time=multi_form.am_pm.data,
             ).first()
-            ic(double_count)
             if double_count is not None:
                 flash(
                     f"{count_entry['itemname']} already has a count on {multi_form.transdate.data}, please enter a different date or time",
