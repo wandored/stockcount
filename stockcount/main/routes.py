@@ -41,7 +41,6 @@ def report():
     if session.get("_flashes") is not None:
         session["_flashes"] = session["_flashes"][1:]
 
-    """route for reports.html"""
     session["access"] = set_user_access()
     if session.get("store") is None or session.get("store") not in session["access"]:
         session["store"] = session["access"][0]
@@ -75,14 +74,9 @@ def report():
         return redirect(url_for("counts_blueprint.count"))
 
     now = datetime.now(eastern)
-    if now.hour < 4:
-        today = (now - timedelta(days=1)).date()
-    else:
-        today = now.date()
+    today = (now - timedelta(days=1)).date() if now.hour < 11 else now.date()
 
-    # convert the last_count to a date
     last_count = last_count_obj.trans_date
-    # last_count = (datetime.strptime(last_count, "%Y-%m-%d")).date()
     penultimate_count = last_count - timedelta(days=1)
     count_warning_date = today - timedelta(days=2)
     missing_count_days = today - last_count
@@ -127,15 +121,63 @@ def report():
     sales_map = {}
     unique_items = [item.item_name for item in items]
 
-    if now.hour >= 21:
-        sales_map = get_current_day_ingredient_usage(
-            session["store"], unique_items, today, use_toast=True
-        )
-    elif now.hour < 9:
-        yesterday = today - timedelta(days=1)
-        sales_map = get_current_day_ingredient_usage(
-            session["store"], unique_items, yesterday, use_toast=True
-        )
+    if now.hour < 11:
+        for ingredient in unique_items:
+            # Helper function for conversion calculation
+            def get_each_conversion(row):
+                if row.uofm == getattr(row, "weight_uofm", None) and getattr(
+                    row, "weight_qty", None
+                ):
+                    return row.qty / row.weight_qty * (row.each_qty or 1)
+                elif row.uofm == getattr(row, "volume_uofm", None) and getattr(
+                    row, "volume_qty", None
+                ):
+                    return row.qty / row.volume_qty * (row.each_qty or 1)
+                elif row.uofm == row.each_uofm and row.each_qty:
+                    return row.qty / row.each_qty
+                else:
+                    return 1
+
+            # Get menu items that use this ingredient
+            menu_items_query = (
+                db.session.query(
+                    RecipeIngredients.menu_item,
+                    RecipeIngredients.qty,
+                    RecipeIngredients.uofm,
+                    ItemConversion.weight_qty,
+                    ItemConversion.weight_uofm,
+                    ItemConversion.each_qty,
+                    ItemConversion.each_uofm,
+                )
+                .join(
+                    ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
+                )
+                .filter(RecipeIngredients.ingredient == ingredient)
+                .distinct()
+            )
+
+            menu_items = []
+            each_conversions = {}
+            for row in menu_items_query:
+                menu_items.append(row.menu_item)
+                each_conversions[row.menu_item] = get_each_conversion(row)
+
+            if menu_items:
+                toast_sales = get_current_day_menu_item_sales(
+                    store_id=session["store"],
+                    unique_items=menu_items,
+                    businessDate=today,
+                )
+
+                total_count_usage = sum(
+                    toast_sales.get(menu_item, {}).get("count", 0) * conversion
+                    for menu_item, conversion in each_conversions.items()
+                )
+            else:
+                total_count_usage = 0
+
+            sales_map[ingredient] = round(total_count_usage)
+
     else:
         sales_map = get_current_day_ingredient_usage(
             session["store"], unique_items, last_count, use_toast=False
@@ -166,7 +208,7 @@ def report():
         )
 
         purchases = purchases_map.get(item.item_name, 0) or 0
-        sales = sales_map.get(item.item_name, 0) or 0
+        sales = sales_map.get(item.item_name, 0)
         waste = waste_map.get(item.item_name, 0) or 0
 
         theory = previous_count + purchases - sales - waste
@@ -189,6 +231,8 @@ def report():
 
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
+    # for row in data_rows:
+    #     print(row)
 
     return render_template(
         "main/report.html",
@@ -223,7 +267,7 @@ def report_details(product):
     current_product = InvItems.query.filter_by(id=product).first()
 
     now = datetime.now(eastern)
-    if now.hour < 4:
+    if now.hour < 8:
         today = (now - timedelta(days=1)).date()
     else:
         today = now.date()
@@ -364,7 +408,6 @@ def report_details(product):
                 menu_items.append(row.menu_item)
                 each_conversions[row.menu_item] = get_each_conversion(row)
 
-            # get Toast sales for today
             toast_sales = get_current_day_menu_item_sales(
                 store_id=session["store"],
                 unique_items=menu_items,
