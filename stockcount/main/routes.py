@@ -74,7 +74,7 @@ def report():
         return redirect(url_for("counts_blueprint.count"))
 
     now = datetime.now(eastern)
-    today = (now - timedelta(days=1)).date() if now.hour < 11 else now.date()
+    today = (now - timedelta(days=1)).date() if now.hour < 8 else now.date()
 
     last_count = last_count_obj.trans_date
     penultimate_count = last_count - timedelta(days=1)
@@ -121,7 +121,7 @@ def report():
     sales_map = {}
     unique_items = [item.item_name for item in items]
 
-    if now.hour < 11:
+    if now.hour < 8:
         for ingredient in unique_items:
             # Helper function for conversion calculation
             def get_each_conversion(row):
