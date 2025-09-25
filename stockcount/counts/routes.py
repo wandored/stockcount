@@ -365,9 +365,7 @@ def update_count_all(count_date):
                     exisiting_item.each_count == count_entry["eachcount"]
                     and exisiting_item.case_count == count_entry["casecount"]
                 ):
-                    # print("No changes for: ", count_entry["itemname"])
                     continue
-                # print("Updating count for existing item: ", count_entry["itemname"])
                 exisiting_item.each_count = count_entry["eachcount"]
                 exisiting_item.casecount = count_entry["casecount"]
                 exisiting_item.count_total = (
@@ -382,7 +380,6 @@ def update_count_all(count_date):
             # Secondly add new count
             # For items in item_list that are not in count
             if count_entry["item_id"] not in [count.item_id for count in count]:
-                # print("Updating count for new item: ", count_entry["itemname"])
                 count_item = InvCount(
                     trans_date=count_date,
                     count_time=count_time.count_time,
