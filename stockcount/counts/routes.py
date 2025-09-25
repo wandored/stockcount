@@ -21,7 +21,6 @@ from stockcount.counts.forms import (
     UpdateCountForm,
     UpdateItemForm,
 )
-from stockcount.counts.utils import calculate_totals
 from stockcount.main.utils import get_current_day_menu_item_sales
 from stockcount.models import (
     Calendar,

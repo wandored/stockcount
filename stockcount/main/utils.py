@@ -276,71 +276,71 @@ def get_current_day_ingredient_usage(
     return dict(usage_map)
 
 
-def get_today_ingredient_usage(
-    store_id: int, ingredient_name: str, business_date: datetime.date, eastern_tz
-) -> int:
-    """
-    Returns the total sales count for a given ingredient today, applying weight/each conversions.
-
-    :param store_id: ID of the store
-    :param ingredient_name: Name of the ingredient to calculate usage for
-    :param business_date: Date for which to pull Toast sales
-    :param eastern_tz: pytz timezone object (for now handling)
-    :return: int, total ingredient usage
-    """
-
-    # Helper function for conversion calculation
-    def get_each_conversion(row):
-        if row.uofm == getattr(row, "weight_uofm", None) and getattr(
-            row, "weight_qty", None
-        ):
-            return row.qty / row.weight_qty * (row.each_qty or 1)
-        elif row.uofm == row.each_uofm and row.each_qty:
-            return row.qty / row.each_qty
-        else:
-            return 0
-
-    # Get list of menu items that use this ingredient
-    menu_items_query = (
-        RecipeIngredients.query.join(
-            ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
-        )
-        .filter(RecipeIngredients.ingredient == ingredient_name)
-        .with_entities(
-            RecipeIngredients.menu_item,
-            RecipeIngredients.qty,
-            RecipeIngredients.uofm,
-            ItemConversion.weight_qty,
-            ItemConversion.weight_uofm,
-            ItemConversion.each_qty,
-            ItemConversion.each_uofm,
-        )
-        .distinct()
-    )
-
-    each_conversions = {}
-    menu_items = []
-    for row in menu_items_query:
-        menu_items.append(row.menu_item)
-        each_conversions[row.menu_item] = get_each_conversion(row)
-
-    if not menu_items:
-        return 0
-
-    # Get Toast sales for the menu items
-    toast_sales = get_current_day_menu_item_sales(
-        store_id=store_id,
-        unique_items=menu_items,
-        businessDate=business_date,
-    )
-
-    # Compute total ingredient usage applying conversions
-    total_count_usage = sum(
-        toast_sales.get(menu_item, {}).get("count", 0) * conversion
-        for menu_item, conversion in each_conversions.items()
-    )
-
-    return round(total_count_usage)
+# def get_today_ingredient_usage(
+#     store_id: int, ingredient_name: str, business_date: datetime.date, eastern_tz
+# ) -> int:
+#     """
+#     Returns the total sales count for a given ingredient today, applying weight/each conversions.
+#
+#     :param store_id: ID of the store
+#     :param ingredient_name: Name of the ingredient to calculate usage for
+#     :param business_date: Date for which to pull Toast sales
+#     :param eastern_tz: pytz timezone object (for now handling)
+#     :return: int, total ingredient usage
+#     """
+#
+#     # Helper function for conversion calculation
+#     def get_each_conversion(row):
+#         if row.uofm == getattr(row, "weight_uofm", None) and getattr(
+#             row, "weight_qty", None
+#         ):
+#             return row.qty / row.weight_qty * (row.each_qty or 1)
+#         elif row.uofm == row.each_uofm and row.each_qty:
+#             return row.qty / row.each_qty
+#         else:
+#             return 0
+#
+#     # Get list of menu items that use this ingredient
+#     menu_items_query = (
+#         RecipeIngredients.query.join(
+#             ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
+#         )
+#         .filter(RecipeIngredients.ingredient == ingredient_name)
+#         .with_entities(
+#             RecipeIngredients.menu_item,
+#             RecipeIngredients.qty,
+#             RecipeIngredients.uofm,
+#             ItemConversion.weight_qty,
+#             ItemConversion.weight_uofm,
+#             ItemConversion.each_qty,
+#             ItemConversion.each_uofm,
+#         )
+#         .distinct()
+#     )
+#
+#     each_conversions = {}
+#     menu_items = []
+#     for row in menu_items_query:
+#         menu_items.append(row.menu_item)
+#         each_conversions[row.menu_item] = get_each_conversion(row)
+#
+#     if not menu_items:
+#         return 0
+#
+#     # Get Toast sales for the menu items
+#     toast_sales = get_current_day_menu_item_sales(
+#         store_id=store_id,
+#         unique_items=menu_items,
+#         businessDate=business_date,
+#     )
+#
+#     # Compute total ingredient usage applying conversions
+#     total_count_usage = sum(
+#         toast_sales.get(menu_item, {}).get("count", 0) * conversion
+#         for menu_item, conversion in each_conversions.items()
+#     )
+#
+#     return round(total_count_usage)
 
 
 def set_user_access():
