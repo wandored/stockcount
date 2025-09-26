@@ -97,15 +97,8 @@ def get_access_token(api_access_url):
 
 def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
     """Fetch all orders from /ordersBulk using page & pageSize pagination."""
-    orders = get_bulk_orders(url, headers, params)
-    logger.info("[Sales] Returned %s orders (type=%s)", len(orders), type(orders))
-    if orders:
-        logger.debug("[Sales] First order keys: %s", list(orders[0].keys()))
-
     all_orders = []
     page = 1
-
-    logger.debug(f"Fetching bulk orders from {url} with params {params}")
 
     while True:
         query = params.copy()
@@ -113,45 +106,30 @@ def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
         query["page"] = page
 
         try:
-            logger.debug(f"Fetching page {page} with pageSize {max_page_size}")
             response = requests.get(url, headers=headers, params=query)
-
-            logger.debug(
-                f"Response status: {response.status_code}, headers: {response.headers}"
-            )
             response.raise_for_status()
-
             try:
                 data = response.json()
-                logger.debug(f"Fetched {len(data)} orders on page {page}")
             except Exception as e:
                 logger.error(f"Error parsing JSON response: {e}")
                 raise
 
             if not isinstance(data, list):
-                logger.error(f"Unexpected response format: {data}")
-                logger.debug(f"Full response: {response.text}")
-                raise ValueError("Expected a list of orders from /ordersBulk")
+                logger.error(f"Unexpected response format: {type(data)}")
+                break
 
             all_orders.extend(data)
 
             if len(data) < max_page_size:
-                logger.debug("Last page reached")
                 break  # last page reached
 
             page += 1
-            logger.debug(
-                f"Sleeping for {rate_limit_wait} seconds to respect rate limits"
-            )
             time.sleep(rate_limit_wait)  # avoid hitting Toast’s rate limits
-        except requests.RequestException as e:
-            logger.error(f"HTTP error during fetch: {e}")
-            raise
+
         except Exception as e:
             logger.error(f"Unexpected error during fetch: {e}")
             raise
 
-    logger.debug(f"Total orders fetched: {len(all_orders)}")
     return all_orders
 
 
@@ -198,12 +176,14 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
     }
 
     try:
-        logger.debug(f"[Sales] Fetching orders from {url} with params {query}")
         payload = get_bulk_orders(url, headers, params=query)
-        logger.info(f"[Sales] Fetched {len(payload)} orders")
+        if not isinstance(payload, list):
+            logger.error(f"[Sales] Unexpected payload format: {type(payload)}")
+            payload = []
+        logger.info(f"[Sales] Fetched {len(payload)} orders from Toast")
     except Exception as e:
         logger.error(f"[Sales] Error fetching sales data: {e}")
-        return 0
+        return {}  # return empty dict on error
 
     item_counts = defaultdict(lambda: {"count": 0, "item_name": ""})
 
