@@ -28,8 +28,10 @@ import requests
 from collections import namedtuple, defaultdict
 from stockcount.config import Config
 
-# Define a namedtuple called 'MenuItem'
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
+# Define a namedtuple called 'MenuItem'
 MenuItem = namedtuple("MenuItem", ["menu_item", "recipe", "ingredient", "id"])
 
 
@@ -95,29 +97,61 @@ def get_access_token(api_access_url):
 
 def get_bulk_orders(url, headers, params, max_page_size=100, rate_limit_wait=5):
     """Fetch all orders from /ordersBulk using page & pageSize pagination."""
+    orders = get_bulk_orders(url, headers, params)
+    logger.info("[Sales] Returned %s orders (type=%s)", len(orders), type(orders))
+    if orders:
+        logger.debug("[Sales] First order keys: %s", list(orders[0].keys()))
+
     all_orders = []
     page = 1
+
+    logger.debug(f"Fetching bulk orders from {url} with params {params}")
 
     while True:
         query = params.copy()
         query["pageSize"] = max_page_size
         query["page"] = page
 
-        response = requests.get(url, headers=headers, params=query)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            logger.debug(f"Fetching page {page} with pageSize {max_page_size}")
+            response = requests.get(url, headers=headers, params=query)
 
-        if not isinstance(data, list):
-            raise ValueError("Expected a list of orders from /ordersBulk")
+            logger.debug(
+                f"Response status: {response.status_code}, headers: {response.headers}"
+            )
+            response.raise_for_status()
 
-        all_orders.extend(data)
+            try:
+                data = response.json()
+                logger.debug(f"Fetched {len(data)} orders on page {page}")
+            except Exception as e:
+                logger.error(f"Error parsing JSON response: {e}")
+                raise
 
-        if len(data) < max_page_size:
-            break  # last page reached
+            if not isinstance(data, list):
+                logger.error(f"Unexpected response format: {data}")
+                logger.debug(f"Full response: {response.text}")
+                raise ValueError("Expected a list of orders from /ordersBulk")
 
-        page += 1
-        time.sleep(rate_limit_wait)  # avoid hitting Toast’s rate limits
+            all_orders.extend(data)
 
+            if len(data) < max_page_size:
+                logger.debug("Last page reached")
+                break  # last page reached
+
+            page += 1
+            logger.debug(
+                f"Sleeping for {rate_limit_wait} seconds to respect rate limits"
+            )
+            time.sleep(rate_limit_wait)  # avoid hitting Toast’s rate limits
+        except requests.RequestException as e:
+            logger.error(f"HTTP error during fetch: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during fetch: {e}")
+            raise
+
+    logger.debug(f"Total orders fetched: {len(all_orders)}")
     return all_orders
 
 
@@ -139,14 +173,18 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
 
     business_date_str = businessDate.strftime("%Y%m%d")
 
+    logger.info(f"[Sales] store_id={store_id}, business_date={business_date_str}, ")
+
     restaurant = Restaurants.query.filter_by(id=store_id).first()
     if not restaurant or not getattr(restaurant, "toast_guid", None):
+        logger.error(f"Invalid store ID or missing Toast GUID: {store_id}")
         raise ValueError(f"Invalid store ID or missing Toast GUID: {store_id}")
     guid = str(restaurant.toast_guid)
 
     api_access_url = Config.TOAST_API_ACCESS_URL
     token_data = get_access_token(api_access_url)
     if not isinstance(token_data, dict):
+        logger.error("[Sales] Invalid token data structure")
         raise TypeError("Expected token to be a dictionary")
     access_token = token_data["token"]["accessToken"]
 
@@ -160,25 +198,23 @@ def get_current_day_menu_item_sales(store_id, unique_items, businessDate=None):
     }
 
     try:
+        logger.debug(f"[Sales] Fetching orders from {url} with params {query}")
         payload = get_bulk_orders(url, headers, params=query)
+        logger.info(f"[Sales] Fetched {len(payload)} orders")
     except Exception as e:
-        print(f"Error fetching sales data: {e}")
+        logger.error(f"[Sales] Error fetching sales data: {e}")
         return 0
 
     item_counts = defaultdict(lambda: {"count": 0, "item_name": ""})
 
     def process_selection(sel):
-        """Recursively process a selection and any nested children."""
         if sel.get("voided", False):
             return
-
         item_name = sel.get("displayName", "Unknown Item")
         quantity = sel.get("quantity", 0) or 0
-
         item_counts[item_name]["count"] += quantity
         if not item_counts[item_name]["item_name"]:
             item_counts[item_name]["item_name"] = item_name
-
         # Recurse into nested selections (casual combos often nest here)
         for child in sel.get("selections", []):
             process_selection(child)
@@ -212,6 +248,11 @@ def get_current_day_ingredient_usage(
     Returns:
         dict: {ingredient_name: usage_count}
     """
+    logger.info(
+        f"[Usage] store_id={store_id}, business_date={business_date}, use_toast={use_toast}, "
+        f"target_ingredients={len(target_ingredients)}"
+    )
+
     usage_map = defaultdict(float)
     # print(f"Fetching menu item sales for {store_id} on {business_date}")
 
@@ -223,13 +264,22 @@ def get_current_day_ingredient_usage(
             .filter(StockcountSales.store_id == store_id)
             .distinct()
         )
+        logger.debug(
+            f"[Usage] Fetching menu item sales for {store_id} on {business_date}"
+        )
+
         sales_dict = get_current_day_menu_item_sales(
             store_id, list(unique_items), business_date
         )
-        menuitem_sales = {name: data["count"] for name, data in sales_dict.items()}
-
-        if not menuitem_sales:
+        logger.debug(f"[Usage] Retrieved sales for {len(sales_dict)} menu items")
+        if not sales_dict:
+            logger.warning(
+                f"[Usage] No menu item sales found for {store_id} on {business_date}"
+            )
             return {}
+
+        menuitem_sales = {name: data["count"] for name, data in sales_dict.items()}
+        logger.debug(f"[Usage] Menu item sales: {menuitem_sales}")
 
         # Step 2: get count_usage per menuitem → ingredient from StockcountSales
         rows = (
@@ -244,6 +294,9 @@ def get_current_day_ingredient_usage(
                 StockcountSales.date == business_date,
             )
             .all()
+        )
+        logger.debug(
+            f"[Usage] Retrieved {len(rows)} StockcountSales rows for usage calculation"
         )
 
         # Step 3: sum count_usage per ingredient (no multiplication needed)
@@ -264,6 +317,9 @@ def get_current_day_ingredient_usage(
             .group_by(StockcountSales.ingredient)
             .all()
         )
+        logger.debug(
+            f"[Usage] Retrieved {len(rows)} StockcountSales rows for usage calculation"
+        )
         for ingredient, count_usage in rows:
             usage_map[ingredient] += count_usage
 
@@ -273,6 +329,7 @@ def get_current_day_ingredient_usage(
             ing: usage for ing, usage in usage_map.items() if ing in target_ingredients
         }
 
+    logger.info(f"[Usage] Computed usage for {len(usage_map)} ingredients")
     return dict(usage_map)
 
 
