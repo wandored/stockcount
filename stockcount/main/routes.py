@@ -12,6 +12,7 @@ from stockcount import db
 from stockcount.counts.forms import StoreForm
 from stockcount.main import blueprint
 from stockcount.main.utils import (
+    get_cached_sales,
     set_user_access,
     get_current_day_menu_item_sales,
     get_current_day_ingredient_usage,
@@ -164,11 +165,16 @@ def report():
                 each_conversions[row.menu_item] = get_each_conversion(row)
 
             if menu_items:
-                toast_sales = get_current_day_menu_item_sales(
+                toast_sales = get_cached_sales(
                     store_id=session["store"],
                     unique_items=menu_items,
-                    businessDate=today,
+                    business_date=today,
                 )
+                # toast_sales = get_current_day_menu_item_sales(
+                #     store_id=session["store"],
+                #     unique_items=menu_items,
+                #     businessDate=today,
+                # )
 
                 total_count_usage = sum(
                     toast_sales.get(menu_item, {}).get("count", 0) * conversion
