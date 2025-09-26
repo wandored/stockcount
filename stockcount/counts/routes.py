@@ -21,7 +21,6 @@ from stockcount.counts.forms import (
     UpdateCountForm,
     UpdateItemForm,
 )
-from stockcount.main.utils import get_current_day_menu_item_sales
 from stockcount.models import (
     Calendar,
     InvCount,
@@ -31,6 +30,7 @@ from stockcount.models import (
     MenuItems,
     Restaurants,
     StockcountSales,
+    StockcountSalesToast,
 )
 
 logger = logging.getLogger(__name__)
@@ -479,7 +479,20 @@ def sales():
         .limit(7)
         .all()
     )
-    # ordered_sales = sales_dates.paginate(page=page, per_page=7)
+
+    current_day_sales = (
+        db.session.query(
+            StockcountSalesToast.date.label("date"),
+            StockcountSalesToast.menuitem.label("menuitem"),
+            func.sum(StockcountSalesToast.sales_count).label("sales_count"),
+        )
+        .filter(
+            StockcountSalesToast.store_id == store_id,
+            StockcountSalesToast.date == business_date,
+        )
+        .group_by(StockcountSalesToast.date, StockcountSalesToast.menuitem)
+        .all()
+    )
 
     # pull all menuitem + counts for the dates in this page
     sales_items = (
@@ -494,18 +507,6 @@ def sales():
         )
         .group_by(StockcountSales.date, StockcountSales.menuitem)
         .all()
-    )
-
-    # get current day sales
-    unique_items = (
-        row.menuitem
-        for row in db.session.query(StockcountSales.menuitem)
-        .filter(StockcountSales.store_id == store_id)
-        .distinct()
-    )
-
-    current_day_sales = get_current_day_menu_item_sales(
-        store_id, unique_items, business_date
     )
 
     # calculate week to date sales
@@ -523,30 +524,6 @@ def sales():
         .order_by(StockcountSales.menuitem)
         .all()
     )
-
-    # # calculate year to date sales
-    # ytd_sales = (
-    #     db.session.query(
-    #         StockcountSales.menuitem.label("menuitem"),
-    #         func.sum(StockcountSales.sales_count).label("ytd_sales"),
-    #     )
-    #     .filter(
-    #         StockcountSales.store_id == store_id,
-    #         StockcountSales.date >= year_start,
-    #         StockcountSales.date <= reporting_today,
-    #     )
-    #     .group_by(StockcountSales.menuitem)
-    #     .order_by(StockcountSales.menuitem)
-    #     .all()
-    # )
-
-    # weekly_avg_sales = [
-    #     {
-    #         "menuitem": row.menuitem,
-    #         "weekly_avg_sales": round(row.ytd_sales / weeks_elapsed, 0),
-    #     }
-    #     for row in ytd_sales
-    # ]
 
     return render_template(
         "counts/sales.html",

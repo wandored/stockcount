@@ -12,23 +12,17 @@ from stockcount import db
 from stockcount.counts.forms import StoreForm
 from stockcount.main import blueprint
 from stockcount.main.utils import (
-    get_cached_sales,
     set_user_access,
-    get_current_day_menu_item_sales,
-    get_current_day_ingredient_usage,
 )
 from stockcount.models import (
     InvCount,
     InvItems,
-    InvSales,
-    ItemConversion,
-    UnitsOfMeasure,
     Restaurants,
-    RecipeIngredients,
     StockcountMonthly,
     StockcountPurchases,
     StockcountSales,
     StockcountWaste,
+    StockcountSalesToast,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,76 +113,60 @@ def report():
     )
     waste_map = {item: count for item, count in waste_results}
 
-    # --- Bulk fetch sales ---
+    # --- Bulk fetch sales from Toast view, fallback to stockcount_sales ---
     sales_map = {}
     unique_items = [item.item_name for item in items]
 
-    if now.hour < 8 or now.hour >= 21:
-        for ingredient in unique_items:
-            # Helper function for conversion calculation
-            def get_each_conversion(row):
-                if row.uofm == getattr(row, "weight_uofm", None) and getattr(
-                    row, "weight_qty", None
-                ):
-                    return row.qty / row.weight_qty * (row.each_qty or 1)
-                elif row.uofm == getattr(row, "volume_uofm", None) and getattr(
-                    row, "volume_qty", None
-                ):
-                    return row.qty / row.volume_qty * (row.each_qty or 1)
-                elif row.uofm == row.each_uofm and row.each_qty:
-                    return row.qty / row.each_qty
-                else:
-                    return 1
-
-            # Get menu items that use this ingredient
-            menu_items_query = (
-                db.session.query(
-                    RecipeIngredients.menu_item,
-                    RecipeIngredients.qty,
-                    RecipeIngredients.uofm,
-                    ItemConversion.weight_qty,
-                    ItemConversion.weight_uofm,
-                    ItemConversion.each_qty,
-                    ItemConversion.each_uofm,
-                )
-                .join(
-                    ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
-                )
-                .filter(RecipeIngredients.ingredient == ingredient)
-                .distinct()
+    # Determine whether to use toast or stockcount data
+    use_toast = False
+    if last_count == today and now.hour < 8:
+        # Check if StockcountSalesToast has sales for this store/date
+        toast_sales_exist = (
+            db.session.query(StockcountSalesToast)
+            .filter(
+                StockcountSalesToast.store_id == session["store"],
+                StockcountSalesToast.date == today,
             )
-
-            menu_items = []
-            each_conversions = {}
-            for row in menu_items_query:
-                menu_items.append(row.menu_item)
-                each_conversions[row.menu_item] = get_each_conversion(row)
-
-            if menu_items:
-                toast_sales = get_cached_sales(
-                    store_id=session["store"],
-                    unique_items=menu_items,
-                    business_date=today,
-                )
-                # toast_sales = get_current_day_menu_item_sales(
-                #     store_id=session["store"],
-                #     unique_items=menu_items,
-                #     businessDate=today,
-                # )
-
-                total_count_usage = sum(
-                    toast_sales.get(menu_item, {}).get("count", 0) * conversion
-                    for menu_item, conversion in each_conversions.items()
-                )
-            else:
-                total_count_usage = 0
-
-            sales_map[ingredient] = round(total_count_usage)
-
-    else:
-        sales_map = get_current_day_ingredient_usage(
-            session["store"], unique_items, last_count, use_toast=False
+            .first()
+            is not None
         )
+        use_toast = toast_sales_exist
+
+    if use_toast:
+        # Try Toast view first
+        toast_sales_query = (
+            db.session.query(
+                StockcountSalesToast.ingredient,
+                func.sum(StockcountSalesToast.count_usage).label("total_count"),
+            )
+            .filter(
+                StockcountSalesToast.store_id == session["store"],
+                StockcountSalesToast.date == last_count,
+                StockcountSalesToast.ingredient.in_(unique_items),
+            )
+            .group_by(StockcountSalesToast.ingredient)
+            .all()
+        )
+        sales_map = {
+            row.ingredient: round(row.total_count) for row in toast_sales_query
+        }
+    else:
+        stockcount_sales_query = (
+            db.session.query(
+                StockcountSales.ingredient,
+                func.sum(StockcountSales.count_usage).label("total_count"),
+            )
+            .filter(
+                StockcountSales.store_id == session["store"],
+                StockcountSales.date == last_count,
+                StockcountSales.ingredient.in_(unique_items),
+            )
+            .group_by(StockcountSales.ingredient)
+            .all()
+        )
+        sales_map = {
+            row.ingredient: round(row.total_count) for row in stockcount_sales_query
+        }
 
     # --- Build data rows ---
     data_rows = []
@@ -238,8 +216,8 @@ def report():
 
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
-    for row in data_rows:
-        print(row)
+    # for row in data_rows:
+    #     print(row)
 
     return render_template(
         "main/report.html",
@@ -374,60 +352,43 @@ def report_details(product):
         }
 
         if current_date == today:
-            # Helper function for conversion calculation
-            def get_each_conversion(row):
-                if row.uofm == getattr(row, "weight_uofm", None) and getattr(
-                    row, "weight_qty", None
-                ):
-                    return row.qty / row.weight_qty * (row.each_qty or 1)
-                elif row.uofm == getattr(row, "volume_uofm", None) and getattr(
-                    row, "volume_qty", None
-                ):
-                    return row.qty / row.volume_qty * (row.each_qty or 1)
-                elif row.uofm == row.each_uofm and row.each_qty:
-                    return row.qty / row.each_qty
-                else:
-                    # Optionally log missing conversion
-                    return 0
+            # Determine business_date based on 4 AM cutoff
+            now = datetime.now(eastern)
+            business_date = (
+                now.date() if now.hour >= 4 else (now - timedelta(days=1)).date()
+            )
 
-            # get list of menu items that use this ingredient, with recipe + conversion info
-            menu_items_query = (
+            # Query Toast view for current day using item_count
+            toast_query = (
                 db.session.query(
-                    RecipeIngredients.menu_item,
-                    RecipeIngredients.qty,
-                    RecipeIngredients.uofm,
-                    ItemConversion.weight_qty,
-                    ItemConversion.weight_uofm,
-                    ItemConversion.each_qty,
-                    ItemConversion.each_uofm,
+                    func.sum(StockcountSalesToast.sales_count).label("total_count")
                 )
-                .join(
-                    ItemConversion, ItemConversion.name == RecipeIngredients.ingredient
+                .filter(
+                    StockcountSalesToast.store_id == session["store"],
+                    StockcountSalesToast.ingredient == current_product.item_name,
+                    StockcountSalesToast.date == business_date,
                 )
-                .filter(RecipeIngredients.ingredient == current_product.item_name)
-                .distinct()
+                .scalar()
             )
 
-            # build dict of conversions per menu item
-            each_conversions = {}
-            menu_items = []
-            for row in menu_items_query:
-                menu_items.append(row.menu_item)
-                each_conversions[row.menu_item] = get_each_conversion(row)
-
-            toast_sales = get_current_day_menu_item_sales(
-                store_id=session["store"],
-                unique_items=menu_items,
-                businessDate=today,
-            )
-
-            total_count_usage = sum(
-                toast_sales.get(menu_item, {}).get("count", 0) * conversion
-                for menu_item, conversion in each_conversions.items()
-            )
-
-            detail["sales_count"] = round(total_count_usage)
-            detail["sales_waste"] = 0  # No waste data for current day
+            if toast_query:
+                detail["sales_count"] = round(toast_query)
+                detail["sales_waste"] = 0  # No waste data for current day
+            else:
+                # Fallback to stockcount_sales using count_usage (older method)
+                fallback_query = (
+                    db.session.query(
+                        func.sum(StockcountSales.count_usage).label("total_count")
+                    )
+                    .filter(
+                        StockcountSales.store_id == session["store"],
+                        StockcountSales.ingredient == current_product.item_name,
+                        StockcountSales.date == business_date,
+                    )
+                    .scalar()
+                )
+                detail["sales_count"] = round(fallback_query or 0)
+                detail["sales_waste"] = 0
 
         details.append(detail)
 

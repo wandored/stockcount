@@ -306,6 +306,25 @@ class StockcountMonthly(db.Model):
     )
 
 
+class StockcountSalesToast(db.Model):
+    __tablename__ = "stockcount_sales_toast"
+
+    date = db.Column(db.Date, primary_key=True)
+    dow = db.Column(db.Integer)
+    week = db.Column(db.Integer)
+    period = db.Column(db.Integer)
+    year = db.Column(db.Integer)
+    store_id = db.Column(db.Integer, primary_key=True)
+    store = db.Column(db.String)
+    menuitem = db.Column(db.String, primary_key=True)
+    sales_count = db.Column(db.Integer)
+    ingredient = db.Column(db.String, primary_key=True)
+    concept = db.Column(db.String)
+    base_usage = db.Column(db.Float)
+    base_uofm = db.Column(db.String)
+    count_usage = db.Column(db.Float)
+
+
 class RecipeIngredients(db.Model):
     __tablename__ = "recipe_ingredients"
 
@@ -317,20 +336,6 @@ class RecipeIngredients(db.Model):
     uofm = db.Column(db.String)
 
     __table_args__ = (PrimaryKeyConstraint("menu_item", "recipe", "ingredient"),)
-
-
-class ItemConversion(db.Model):
-    __tablename__ = "item_conversion"
-
-    item_id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    weight_qty = db.Column(db.Float)
-    weight_uofm = db.Column(db.String)
-    volume_qty = db.Column(db.Float)
-    volume_uofm = db.Column(db.String)
-    each_qty = db.Column(db.Float)
-    each_uofm = db.Column(db.String)
-    measure_type = db.Column(db.String)
 
 
 class MenuItems(db.Model):

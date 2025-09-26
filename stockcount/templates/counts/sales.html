@@ -17,10 +17,10 @@
   <section id="toast_sales" class="p-1 bg-steel">
     <div class="content-section">
       <legend class="border-bottom mb-6">Current Business Date: {{ date.strftime('%A-%m/%d') }}</legend>
-      {% for item in current_day_sales.values() %}
+      {% for item in current_day_sales %}
         <div class="media-body d-flex justify-content-between">
-          <span>{{ item.item_name }}</span>
-          <span>{{ item.count|int }}</span>
+          <span>{{ item.menuitem }}</span>
+          <span>{{ item.sales_count|int }}</span>
         </div>
       {% endfor %}
     </div>
