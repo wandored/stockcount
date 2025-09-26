@@ -29,7 +29,6 @@ from collections import namedtuple, defaultdict
 from stockcount.config import Config
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 # Define a namedtuple called 'MenuItem'
 MenuItem = namedtuple("MenuItem", ["menu_item", "recipe", "ingredient", "id"])
