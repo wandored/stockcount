@@ -29,6 +29,7 @@ from collections import namedtuple, defaultdict
 from stockcount.config import Config
 
 logger = logging.getLogger(__name__)
+_sales_cache = {}
 
 # Define a namedtuple called 'MenuItem'
 MenuItem = namedtuple("MenuItem", ["menu_item", "recipe", "ingredient", "id"])
@@ -310,6 +311,23 @@ def get_current_day_ingredient_usage(
 
     logger.info(f"[Usage] Computed usage for {len(usage_map)} ingredients")
     return dict(usage_map)
+
+
+def get_cached_sales(
+    store_id, unique_items, business_date, ttl=900
+):  # 900 sec = 15 min
+    key = (store_id, business_date)
+    now = time.time()
+    # Check if cache exists and is fresh
+    if key in _sales_cache:
+        cached_time, cached_data = _sales_cache[key]
+        if now - cached_time < ttl:
+            return cached_data
+
+    # Otherwise, fetch fresh sales
+    fresh_data = get_current_day_menu_item_sales(store_id, unique_items, business_date)
+    _sales_cache[key] = (now, fresh_data)
+    return fresh_data
 
 
 # def get_today_ingredient_usage(
