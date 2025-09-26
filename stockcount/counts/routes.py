@@ -33,6 +33,7 @@ from stockcount.models import (
     StockcountSales,
 )
 
+logger = logging.getLogger(__name__)
 eastern = ZoneInfo("America/New_York")
 
 

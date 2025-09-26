@@ -2,6 +2,7 @@
 stockcount app initialization
 """
 
+import logging
 from flask import Flask
 from flask_wtf.csrf import CSRFProtect
 from importlib import import_module
@@ -35,6 +36,14 @@ def configure_database(app):
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    logging.basicConfig(
+        level=logging.INFO,  # INFO for production, can be DEBUG for development
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+    logging.getLogger("urllib3").setLevel(logging.WARNING)  # quiet noisy libraries
+    logging.getLogger("werkzeug").setLevel(logging.INFO)
+
     register_extensions(app)
     register_blueprints(app)
     configure_database(app)

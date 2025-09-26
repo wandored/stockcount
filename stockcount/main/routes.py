@@ -30,6 +30,7 @@ from stockcount.models import (
     StockcountWaste,
 )
 
+logger = logging.getLogger(__name__)
 eastern = ZoneInfo("America/New_York")
 
 
@@ -121,7 +122,7 @@ def report():
     sales_map = {}
     unique_items = [item.item_name for item in items]
 
-    if now.hour < 8:
+    if now.hour < 8 or now.hour >= 21:
         for ingredient in unique_items:
             # Helper function for conversion calculation
             def get_each_conversion(row):
@@ -231,8 +232,8 @@ def report():
 
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
-    # for row in data_rows:
-    #     print(row)
+    for row in data_rows:
+        print(row)
 
     return render_template(
         "main/report.html",
