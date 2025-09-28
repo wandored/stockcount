@@ -33,16 +33,6 @@ eastern = ZoneInfo("America/New_York")
 @blueprint.route("/report/", methods=["GET", "POST"])
 @login_required
 def report():
-    # ----- Core date variables -----
-    current_date = datetime.now(eastern)
-
-    # Reporting business day (8am cutoff)
-    business_date = (
-        current_date.date()
-        if current_date.hour >= 18
-        else (current_date - timedelta(days=1)).date()
-    )
-
     # skip the first error message in the session
     if session.get("_flashes") is not None:
         session["_flashes"] = session["_flashes"][1:]
@@ -65,6 +55,16 @@ def report():
                     f"User {current_user.email} attempted to access store {x.id} without permission"
                 )
         return redirect(url_for("main_blueprint.report"))
+
+    # ----- Core date variables -----
+    current_date = datetime.now(eastern)
+
+    # Reporting business day (8am cutoff)
+    business_date = (
+        current_date.date()
+        if current_date.hour >= 18
+        else (current_date - timedelta(days=1)).date()
+    )
 
     # Get the most recent day that was counted
     last_count_obj = (
