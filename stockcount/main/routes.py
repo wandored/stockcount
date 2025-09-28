@@ -33,6 +33,16 @@ eastern = ZoneInfo("America/New_York")
 @blueprint.route("/report/", methods=["GET", "POST"])
 @login_required
 def report():
+    # ----- Core date variables -----
+    current_date = datetime.now(eastern)
+
+    # Reporting business day (8am cutoff)
+    business_date = (
+        current_date.date()
+        if current_date.hour >= 18
+        else (current_date - timedelta(days=1)).date()
+    )
+
     # skip the first error message in the session
     if session.get("_flashes") is not None:
         session["_flashes"] = session["_flashes"][1:]
@@ -69,13 +79,10 @@ def report():
         )
         return redirect(url_for("counts_blueprint.count"))
 
-    now = datetime.now(eastern)
-    today = (now - timedelta(days=1)).date() if now.hour < 8 else now.date()
-
     last_count = last_count_obj.trans_date
     penultimate_count = last_count - timedelta(days=1)
-    count_warning_date = today - timedelta(days=2)
-    missing_count_days = today - last_count
+    count_warning_date = business_date - timedelta(days=2)
+    missing_count_days = business_date - last_count
     if last_count < count_warning_date:
         flash(f"Your last count was {missing_count_days.days} days ago", "danger")
 
@@ -117,27 +124,31 @@ def report():
     sales_map = {}
     unique_items = [item.item_name for item in items]
 
-    # Determine whether to use toast or stockcount data
-    use_toast = False
-    if last_count == today and now.hour < 8:
-        # Check if StockcountSalesToast has sales for this store/date
-        toast_sales_exist = (
-            db.session.query(StockcountSalesToast)
-            .filter(
-                StockcountSalesToast.store_id == session["store"],
-                StockcountSalesToast.date == today,
-            )
-            .first()
-            is not None
+    # Try StockcountSales first (preferred source)
+    stockcount_sales_query = (
+        db.session.query(
+            StockcountSales.ingredient,
+            func.sum(StockcountSales.count_usage).label("total_count"),
         )
-        use_toast = toast_sales_exist
+        .filter(
+            StockcountSales.store_id == session["store"],
+            StockcountSales.date == last_count,
+            StockcountSales.ingredient.in_(unique_items),
+        )
+        .group_by(StockcountSales.ingredient)
+        .all()
+    )
 
-    if use_toast:
-        # Try Toast view first
+    if stockcount_sales_query:
+        sales_map = {
+            row.ingredient: round(row.total_count) for row in stockcount_sales_query
+        }
+    else:
+        # Fall back to Toast if no StockcountSales
         toast_sales_query = (
             db.session.query(
                 StockcountSalesToast.ingredient,
-                func.sum(StockcountSalesToast.count_usage).label("total_count"),
+                func.sum(StockcountSalesToast.sales_count).label("total_count"),
             )
             .filter(
                 StockcountSalesToast.store_id == session["store"],
@@ -149,23 +160,6 @@ def report():
         )
         sales_map = {
             row.ingredient: round(row.total_count) for row in toast_sales_query
-        }
-    else:
-        stockcount_sales_query = (
-            db.session.query(
-                StockcountSales.ingredient,
-                func.sum(StockcountSales.count_usage).label("total_count"),
-            )
-            .filter(
-                StockcountSales.store_id == session["store"],
-                StockcountSales.date == last_count,
-                StockcountSales.ingredient.in_(unique_items),
-            )
-            .group_by(StockcountSales.ingredient)
-            .all()
-        )
-        sales_map = {
-            row.ingredient: round(row.total_count) for row in stockcount_sales_query
         }
 
     # --- Build data rows ---
@@ -195,7 +189,6 @@ def report():
         purchases = purchases_map.get(item.item_name, 0) or 0
         sales = sales_map.get(item.item_name, 0)
         waste = waste_map.get(item.item_name, 0) or 0
-
         theory = previous_count + purchases - sales - waste
         variance = current_count - theory
 
@@ -216,8 +209,6 @@ def report():
 
     # sort results by variance
     data_rows = sorted(data_rows, key=lambda x: x["variance"])
-    # for row in data_rows:
-    #     print(row)
 
     return render_template(
         "main/report.html",
@@ -233,6 +224,16 @@ def report():
 @login_required
 def report_details(product):
     """display item details"""
+
+    # ----- Core date variables -----
+    current_date = datetime.now(eastern)
+
+    # Reporting business date (8am cutoff)
+    business_date = (
+        current_date.date()
+        if current_date.hour >= 18
+        else (current_date - timedelta(days=1)).date()
+    )
 
     store_form = StoreForm()
     if store_form.storeform_submit.data and store_form.validate():
@@ -251,12 +252,6 @@ def report_details(product):
     current_location = Restaurants.query.filter_by(id=session["store"]).first()
     current_product = InvItems.query.filter_by(id=product).first()
 
-    now = datetime.now(eastern)
-    if now.hour < 8:
-        today = (now - timedelta(days=1)).date()
-    else:
-        today = now.date()
-
     # set end_date to today() - 1
     end_date = datetime.now().date() - timedelta(days=1)
     weekly = end_date - timedelta(days=6)
@@ -268,7 +263,7 @@ def report_details(product):
         .filter(
             StockcountMonthly.store_id == session["store"],
             StockcountMonthly.item_id == product,
-            StockcountMonthly.date <= today,
+            StockcountMonthly.date <= business_date,
         )
         .order_by(StockcountMonthly.date.desc())
         .limit(9)
@@ -283,7 +278,7 @@ def report_details(product):
             StockcountPurchases.store == current_location.name,
             StockcountPurchases.item == current_product.item_name,
             StockcountPurchases.date >= monthly,
-            StockcountPurchases.date <= today,
+            StockcountPurchases.date <= business_date,
         )
         .group_by(StockcountPurchases.date)
         .order_by(StockcountPurchases.date.desc())
@@ -298,7 +293,7 @@ def report_details(product):
             StockcountSales.store == current_location.name,
             StockcountSales.ingredient == current_product.item_name,
             StockcountSales.date >= monthly,
-            StockcountSales.date <= today,
+            StockcountSales.date <= business_date,
         )
         .group_by(StockcountSales.date)
         .order_by(StockcountSales.date.desc())
@@ -313,7 +308,7 @@ def report_details(product):
             StockcountWaste.store == current_location.name,
             StockcountWaste.item == current_product.item_name,
             StockcountWaste.date >= monthly,
-            StockcountWaste.date <= today,
+            StockcountWaste.date <= business_date,
         )
         .group_by(StockcountWaste.date)
         .order_by(StockcountWaste.date.desc())
@@ -332,63 +327,51 @@ def report_details(product):
     # Initialize variables to keep track of previous_total
     details = []
 
-    start_date = today
-
-    # Iterate over the last 7 days starting from the start_date
+    # Iterate over the last 7 days starting from the business_date
     for day in range(8):
-        current_date = start_date - timedelta(days=day)
-        count_total = count_map.get(current_date, 0)  # Default to 0 to
+        report_date = business_date - timedelta(days=day)
+        count_total = count_map.get(report_date, 0)  # Default to 0 to
 
         # Create a dictionary with trans_date and count_total
         detail = {
-            "trans_date": current_date,
+            "trans_date": report_date,
             "count_total": count_total,
-            "purchase_count": purchase_data.get(current_date, 0),
-            "sales_count": sales_data.get(current_date, 0),
-            "sales_waste": waste_data.get(current_date, 0),
+            "purchase_count": purchase_data.get(report_date, 0),
+            "sales_count": sales_data.get(report_date, 0),
+            "sales_waste": waste_data.get(report_date, 0),
             "theory": 0,
             "daily_variance": 0,
             "previous_total": 0,
         }
 
-        if current_date == today:
-            # Determine business_date based on 4 AM cutoff
-            now = datetime.now(eastern)
-            business_date = (
-                now.date() if now.hour >= 4 else (now - timedelta(days=1)).date()
+        # Prefer R365 Sales, fallback to Toast
+        primary_sales = (
+            db.session.query(func.sum(StockcountSales.count_usage).label("total_count"))
+            .filter(
+                StockcountSales.store_id == session["store"],
+                StockcountSales.ingredient == current_product.item_name,
+                StockcountSales.date == report_date,
             )
+            .scalar()
+        )
 
-            # Query Toast view for current day using item_count
-            toast_query = (
+        if primary_sales:
+            detail["sales_count"] = round(primary_sales)
+            detail["sales_waste"] = 0
+        else:
+            toast_sales = (
                 db.session.query(
                     func.sum(StockcountSalesToast.sales_count).label("total_count")
                 )
                 .filter(
                     StockcountSalesToast.store_id == session["store"],
                     StockcountSalesToast.ingredient == current_product.item_name,
-                    StockcountSalesToast.date == business_date,
+                    StockcountSalesToast.date == report_date,
                 )
                 .scalar()
             )
-
-            if toast_query:
-                detail["sales_count"] = round(toast_query)
-                detail["sales_waste"] = 0  # No waste data for current day
-            else:
-                # Fallback to stockcount_sales using count_usage (older method)
-                fallback_query = (
-                    db.session.query(
-                        func.sum(StockcountSales.count_usage).label("total_count")
-                    )
-                    .filter(
-                        StockcountSales.store_id == session["store"],
-                        StockcountSales.ingredient == current_product.item_name,
-                        StockcountSales.date == business_date,
-                    )
-                    .scalar()
-                )
-                detail["sales_count"] = round(fallback_query or 0)
-                detail["sales_waste"] = 0
+            detail["sales_count"] = round(toast_sales or 0)
+            detail["sales_waste"] = 0
 
         details.append(detail)
 
