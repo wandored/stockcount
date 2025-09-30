@@ -31,7 +31,7 @@ class Config:
     MAIL_SERVER = config.get("EMAIL_SERVER")
     MAIL_PORT = config.get("EMAIL_PORT")
     MAIL_USE_TLS = config.get("EMAIL_USE_TLS")
-    MAIL_DEFAULT_SENDER = config.get("MAIL_DEFAULT_SENDER")
+    MAIL_DEFAULT_SENDER = config.get("EMAIL_DEFAULT_SENDER")
     HOST_SERVER = config.get("HOST_SERVER")
     PSYCOPG2_USER = config.get("PSYCOPG2_USER")
     PSYCOPG2_PASS = config.get("PSYCOPG2_PASS")

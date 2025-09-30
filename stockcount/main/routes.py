@@ -148,7 +148,7 @@ def report():
         toast_sales_query = (
             db.session.query(
                 StockcountSalesToast.ingredient,
-                func.sum(StockcountSalesToast.sales_count).label("total_count"),
+                func.sum(StockcountSalesToast.count_usage).label("total_count"),
             )
             .filter(
                 StockcountSalesToast.store_id == session["store"],
@@ -287,7 +287,7 @@ def report_details(product):
     sales_list = (
         db.session.query(
             StockcountSales.date,
-            func.sum(cast(StockcountSales.count_usage, Integer)).label("sales_count"),
+            func.sum(cast(StockcountSales.count_usage, Integer)).label("total_count"),
         )
         .filter(
             StockcountSales.store == current_location.name,
@@ -318,7 +318,7 @@ def report_details(product):
     purchase_data = {
         purchase.date: int(purchase.unit_count) for purchase in purchase_list
     }
-    sales_data = {sale.date: int(sale.sales_count) for sale in sales_list}
+    sales_data = {sale.date: int(sale.total_count) for sale in sales_list}
     waste_data = {waste.date: abs(int(waste.base_qty)) for waste in waste_list}
 
     count_list = list(count_list)
@@ -361,7 +361,7 @@ def report_details(product):
         else:
             toast_sales = (
                 db.session.query(
-                    func.sum(StockcountSalesToast.sales_count).label("total_count")
+                    func.sum(StockcountSalesToast.count_usage).label("total_count")
                 )
                 .filter(
                     StockcountSalesToast.store_id == session["store"],
