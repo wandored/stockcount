@@ -141,7 +141,7 @@ def report():
 
     if stockcount_sales_query:
         sales_map = {
-            row.ingredient: round(row.total_count) for row in stockcount_sales_query
+            row.ingredient: round(row.total_count or 0) for row in stockcount_sales_query
         }
     else:
         # Fall back to Toast if no StockcountSales
@@ -159,7 +159,7 @@ def report():
             .all()
         )
         sales_map = {
-            row.ingredient: round(row.total_count) for row in toast_sales_query
+            row.ingredient: round(row.total_count or 0) for row in toast_sales_query
         }
 
     # --- Build data rows ---
